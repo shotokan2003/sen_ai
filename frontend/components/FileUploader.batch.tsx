@@ -14,13 +14,13 @@ import {
   CloudArrowUpIcon
 } from '@heroicons/react/24/outline'
 import { useMutation } from '@tanstack/react-query'
-import { resumeApi, type BatchProcessingResponse, type FileProcessingResult } from '../src/lib/api'
+import { resumeApi, type BatchProcessingResponse } from '../src/lib/api'
 
 interface FileWithId extends File {
   id: string
 }
 
-export default function FileUploader() {
+export default function FileUploaderBatch() {
   const [files, setFiles] = useState<FileWithId[]>([])
   const [saveToDb, setSaveToDb] = useState(true)
   const [batchResult, setBatchResult] = useState<BatchProcessingResponse | null>(null)

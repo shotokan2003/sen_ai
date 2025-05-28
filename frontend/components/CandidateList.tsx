@@ -141,9 +141,8 @@ export default function CandidateList() {
   return (    <div>
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-github-fg-default dark:text-github-dark-fg-default mb-4">
-          Candidate Database
-        </h2>
-        
+          Candidate Database        </h2>
+
         {/* Status Filter */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-github-fg-default dark:text-github-dark-fg-default mb-2">
@@ -188,9 +187,8 @@ export default function CandidateList() {
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-github-fg-muted dark:text-github-dark-fg-muted uppercase tracking-wider">
                 Actions
               </th>
-            </tr>
-          </thead>
-          <tbody className="bg-github-canvas-default dark:bg-github-dark-canvas-default divide-y divide-github-border-muted dark:divide-github-dark-border-muted">            {isLoading ? (
+            </tr>          </thead>
+          <tbody className="bg-github-canvas-default dark:bg-github-dark-canvas-default divide-y divide-github-border-muted dark:divide-github-dark-border-muted">{isLoading ? (
               <tr>
                 <td colSpan={7} className="px-6 py-4 text-center">
                   <div className="flex justify-center">

@@ -4,6 +4,8 @@ import tempfile
 import json
 import uuid
 import logging
+import asyncio
+import concurrent.futures
 from datetime import datetime
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends, Query
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -23,7 +25,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Import database module
-from database import get_db, Candidate, Education, Skill, WorkExperience, Status, init_db, save_candidate_data, get_all_candidates, shortlist_candidate
+from database import (
+    get_db, Candidate, Education, Skill, WorkExperience, Status, init_db, 
+    save_candidate_data, get_all_candidates, shortlist_candidate,
+    calculate_file_hash, check_duplicate_file, generate_batch_id, save_candidate_data_with_hash
+)
 from sqlalchemy.orm import Session
 
 # Import S3 storage module
@@ -221,6 +227,24 @@ class ParsedResumeData(BaseModel):
     skills: List[str] = []
     years_experience: Optional[int] = None
 
+# Batch processing models
+class FileProcessingResult(BaseModel):
+    filename: str
+    status: str  # 'success', 'error', 'duplicate'
+    candidate_id: Optional[int] = None
+    extracted_text: Optional[str] = None
+    parsed_data: Optional[str] = None
+    message: Optional[str] = None
+    existing_candidate_id: Optional[int] = None
+
+class BatchProcessingResponse(BaseModel):
+    batch_id: str
+    total_files: int
+    successful: int
+    failed: int
+    duplicates: int
+    results: List[FileProcessingResult]
+
 def parse_markdown_data(markdown_data: str) -> ParsedResumeData:
     """
     Parse the markdown text returned by the LLM into a structured format
@@ -406,8 +430,7 @@ async def upload_resume(
                     resume_file_path=s3_key,
                     resume_s3_url=presigned_url if presigned_success else s3_url,
                     original_filename=original_filename
-                )
-        
+                )        
         # Clean up temporary file
         os.unlink(temp_file_path)
         
@@ -415,7 +438,7 @@ async def upload_resume(
             "extracted_text": extracted_text,
             "parsed_data": parsed_data,
             "candidate_id": candidate_id
-        }
+                }
     
     except Exception as e:
         # Clean up temporary file in case of error
@@ -423,6 +446,188 @@ async def upload_resume(
             os.unlink(temp_file_path)
         logger.error(f"Error processing file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+
+async def process_single_file(file: UploadFile, batch_id: str, parse: bool = True, save_to_db: bool = True) -> FileProcessingResult:
+    """
+    Process a single file in a batch operation
+    
+    Args:
+        file: The uploaded file
+        batch_id: The batch ID for this upload session
+        parse: Whether to parse the resume
+        save_to_db: Whether to save to database
+        
+    Returns:
+        FileProcessingResult: Result of processing this file
+    """
+    filename = file.filename
+    
+    try:
+        # Check if file extension is supported
+        file_extension = filename.split('.')[-1].lower()
+        if file_extension not in ["pdf", "docx", "txt"]:
+            return FileProcessingResult(
+                filename=filename,
+                status="error",
+                message="Unsupported file format. Please upload a PDF, DOCX, or TXT file."
+            )
+        
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{file_extension}") as temp_file:
+            temp_file_path = temp_file.name
+            content = await file.read()
+            temp_file.write(content)
+        
+        # Calculate file hash for duplicate checking
+        file_hash = calculate_file_hash(temp_file_path)
+        if not file_hash:
+            os.unlink(temp_file_path)
+            return FileProcessingResult(
+                filename=filename,
+                status="error",
+                message="Failed to calculate file hash"
+            )
+        
+        # Check for duplicates
+        duplicate_info = check_duplicate_file(file_hash)
+        if duplicate_info:
+            os.unlink(temp_file_path)
+            return FileProcessingResult(
+                filename=filename,
+                status="duplicate",
+                message=f"File already exists for candidate '{duplicate_info['candidate_name']}' (uploaded on {duplicate_info['upload_date'][:10]})",
+                existing_candidate_id=duplicate_info['candidate_id']
+            )
+        
+        # Extract text based on file type
+        if file_extension == "pdf":
+            extracted_text = extract_text_from_pdf(temp_file_path)
+        elif file_extension == "docx":
+            extracted_text = extract_text_from_docx(temp_file_path)
+        elif file_extension == "txt":
+            extracted_text = extract_text_from_txt(temp_file_path)
+        
+        # Parse the resume if requested
+        parsed_data = None
+        parsed_structured_data = None
+        candidate_id = None
+        
+        if parse and extracted_text.strip():
+            parsed_data = extract_resume_data(extracted_text)
+            parsed_structured_data = parse_markdown_data(parsed_data)
+            
+            # Save to database if requested
+            if save_to_db:
+                # Generate a unique filename but keep it flat without extra folders
+                timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+                unique_id = str(uuid.uuid4())[:8]  # Use shorter UUID
+                filename_base = os.path.splitext(filename)[0]
+                filename_ext = os.path.splitext(filename)[1]
+                
+                # Create a flatter S3 key structure
+                s3_key = f"resumes/{filename_base}_{timestamp}_{unique_id}{filename_ext}"
+                
+                # Upload to S3
+                success, s3_url = upload_file_to_s3(temp_file_path, s3_key)
+                
+                if not success:
+                    os.unlink(temp_file_path)
+                    return FileProcessingResult(
+                        filename=filename,
+                        status="error",
+                        message=f"Failed to upload file to S3: {s3_url}"
+                    )
+                
+                # Generate a presigned URL for temporary access
+                presigned_success, presigned_url = generate_presigned_url(s3_key, expiration=3600*24)  # 24 hours
+                
+                # Save to database with file hash and batch ID
+                candidate_id = save_candidate_data_with_hash(
+                    parsed_structured_data.dict(),
+                    resume_file_path=s3_key,
+                    resume_s3_url=presigned_url if presigned_success else s3_url,
+                    original_filename=filename,
+                    file_hash=file_hash,
+                    batch_id=batch_id
+                )
+        
+        # Clean up temporary file
+        os.unlink(temp_file_path)
+        
+        return FileProcessingResult(
+            filename=filename,
+            status="success",
+            candidate_id=candidate_id,
+            extracted_text=extracted_text,
+            parsed_data=parsed_data,
+            message="Successfully processed"
+        )
+    
+    except Exception as e:
+        # Clean up temporary file in case of error
+        if 'temp_file_path' in locals() and os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
+        logger.error(f"Error processing file {filename}: {str(e)}")
+        return FileProcessingResult(
+            filename=filename,
+            status="error",
+            message=f"Error processing file: {str(e)}"
+        )
+
+@app.post("/upload-resumes-batch/", response_model=BatchProcessingResponse)
+async def upload_resumes_batch(
+    files: List[UploadFile] = File(...),
+    parse: bool = Form(True),
+    save_to_db: bool = Form(True)
+):
+    """
+    Upload and process multiple resume files in batch.
+    Files are processed in parallel for better performance.
+    """
+    if not files:
+        raise HTTPException(status_code=400, detail="No files provided")
+    
+    if len(files) > 50:  # Limit batch size
+        raise HTTPException(status_code=400, detail="Maximum 50 files allowed per batch")
+    
+    # Generate a unique batch ID
+    batch_id = generate_batch_id()
+    
+    try:
+        # Process files in parallel using asyncio.gather
+        tasks = [process_single_file(file, batch_id, parse, save_to_db) for file in files]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Convert any exceptions to error results
+        processed_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                processed_results.append(FileProcessingResult(
+                    filename=files[i].filename,
+                    status="error",
+                    message=f"Unexpected error: {str(result)}"
+                ))
+            else:
+                processed_results.append(result)
+        
+        # Calculate statistics
+        total_files = len(processed_results)
+        successful = len([r for r in processed_results if r.status == "success"])
+        failed = len([r for r in processed_results if r.status == "error"])
+        duplicates = len([r for r in processed_results if r.status == "duplicate"])
+        
+        return BatchProcessingResponse(
+            batch_id=batch_id,
+            total_files=total_files,
+            successful=successful,
+            failed=failed,
+            duplicates=duplicates,
+            results=processed_results
+        )
+    
+    except Exception as e:
+        logger.error(f"Error in batch processing: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error in batch processing: {str(e)}")
 
 @app.post("/parse-text/")
 async def parse_text(text: str = Form(...)):

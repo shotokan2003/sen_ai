@@ -30,6 +30,7 @@ class ShortlistingResult(BaseModel):
     job_description: str
     total_candidates: int
     shortlisted_candidates: List[CandidateScore]
+    all_candidates: List[CandidateScore]  # New field for all candidates with scores
     scoring_criteria: str
 
 def get_candidate_resume_data(candidate_id: int, db: Session) -> Optional[Dict[str, Any]]:
@@ -262,12 +263,14 @@ def shortlist_candidates(job_description: str, min_score: int = 70, limit: Optio
             if candidate_data:
                 candidate_score = score_candidate_against_job(candidate_data, job_description)
                 scored_candidates.append(candidate_score)
-        
-        # Filter by minimum score and sort by score (highest first)
+          # Filter by minimum score and sort by score (highest first)
         shortlisted = [c for c in scored_candidates if c.score >= min_score]
         shortlisted.sort(key=lambda x: x.score, reverse=True)
         
-        # Apply limit if specified
+        # Sort all candidates by score for display
+        all_candidates_sorted = sorted(scored_candidates, key=lambda x: x.score, reverse=True)
+        
+        # Apply limit if specified (only to shortlisted)
         if limit:
             shortlisted = shortlisted[:limit]
         
@@ -286,6 +289,7 @@ Minimum Score: {min_score}/100
             job_description=job_description,
             total_candidates=len(candidates),
             shortlisted_candidates=shortlisted,
+            all_candidates=all_candidates_sorted,
             scoring_criteria=scoring_criteria
         )
     

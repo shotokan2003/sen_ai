@@ -12,6 +12,25 @@ export interface UploadResponse {
   candidate_id?: number;
 }
 
+export interface FileProcessingResult {
+  filename: string;
+  status: 'success' | 'error' | 'duplicate';
+  candidate_id?: number;
+  extracted_text?: string;
+  parsed_data?: string;
+  message?: string;
+  existing_candidate_id?: number;
+}
+
+export interface BatchProcessingResponse {
+  batch_id: string;
+  total_files: number;
+  successful: number;
+  failed: number;
+  duplicates: number;
+  results: FileProcessingResult[];
+}
+
 export interface Candidate {
   candidate_id: number;
   full_name: string;
@@ -69,6 +88,18 @@ export const resumeApi = {
     formData.append('save_to_db', String(saveToDb));
     
     const response = await api.post<UploadResponse>('/upload-resume/', formData);
+    return response.data;
+  },
+
+  uploadResumesBatch: async (files: File[], parse: boolean = true, saveToDb: boolean = true): Promise<BatchProcessingResponse> => {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('files', file);
+    });
+    formData.append('parse', String(parse));
+    formData.append('save_to_db', String(saveToDb));
+    
+    const response = await api.post<BatchProcessingResponse>('/upload-resumes-batch/', formData);
     return response.data;
   },
 
