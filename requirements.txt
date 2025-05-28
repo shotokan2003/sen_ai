@@ -1,0 +1,10 @@
+streamlit
+groq
+python-dotenv
+# SQLAlchemy
+pypdf2
+python-docx
+pytesseract
+Pillow
+pdf2image
+# Add other database-specific drivers if aevan is not SQLite, e.g., psycopg2-binary for PostgreSQL
