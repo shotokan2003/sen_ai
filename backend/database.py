@@ -162,14 +162,29 @@ def save_candidate_data(parsed_data, resume_file_path=None, resume_s3_url=None, 
         
         db.add(candidate)
         db.flush()  # Get the ID without committing
-        
-        # Add education entries
+          # Add education entries
         for edu in parsed_data.get('education', []):
+            # Safely convert year to integer, default to None if invalid
+            graduation_year = None
+            year_str = edu.get('year', '').strip()
+            if year_str:
+                try:
+                    # Extract 4-digit year if it exists
+                    import re
+                    year_match = re.search(r'\b(19|20)\d{2}\b', year_str)
+                    if year_match:
+                        graduation_year = int(year_match.group())
+                    else:
+                        # Try to convert the whole string to int
+                        graduation_year = int(year_str)
+                except (ValueError, TypeError):
+                    graduation_year = None
+            
             education = Education(
                 candidate_id=candidate.candidate_id,
                 degree=edu.get('degree'),
                 institution=edu.get('institution'),
-                graduation_year=edu.get('year')
+                graduation_year=graduation_year
             )
             db.add(education)
         

@@ -4,6 +4,7 @@ import tempfile
 import json
 import uuid
 import logging
+from datetime import datetime
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends, Query
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,19 +41,18 @@ except ImportError:
 load_dotenv()
 
 # Initialize Groq client
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+client = Groq(api_key=GROQ_API_KEY)
 
-app = FastAPI(title="Resume Processing API")
+app = FastAPI()
 
-# Add CORS middleware with more specific configuration
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
-    allow_credentials=False,  # Must be False for wildcard origin
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
-    expose_headers=["*"],  # Expose all headers
-    max_age=3600,  # Cache preflight requests for 1 hour
+    allow_origins=["*"],  # In production, replace with your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 def extract_text_from_pdf(file_path):
@@ -145,7 +145,6 @@ def extract_text_from_txt(file_path):
     return text
 
 def extract_resume_data(resume_text):
-    """Extracts structured data from resume text using Groq API."""
     prompt = f"""Extract ONLY the following information from the resume text provided below:
     - Full Name
     - Email Address
@@ -174,7 +173,7 @@ def extract_resume_data(resume_text):
     [Extracted location]
 
     ## Education
-    - [Degree], [Institution], [Year]
+    - [Degree], [Institution], [4-digit Year ONLY like 2020, 2019, etc]
     - [Additional education entries]
 
     ## Work Experience
@@ -187,6 +186,7 @@ def extract_resume_data(resume_text):
     ## Years of Experience
     [Number of years] - YOU MUST PROVIDE THIS! Calculate if not explicitly stated in resume and display only the number
 
+    IMPORTANT: For education year, use ONLY 4-digit years (like 2020, 2019, 2018). Do not use locations, ranges, or other text.
     If a field is not found, indicate "Not found" for that field only.
     """
 
@@ -251,7 +251,7 @@ def parse_markdown_data(markdown_data: str) -> ParsedResumeData:
         elif "phone" in section_name:
             data["phone"] = content if content != "Not found" else None
         elif "location" in section_name:
-            data["location"] = content if content != "Not found" else None
+            data["location"] = content if content != "Not found" else None        
         elif "education" in section_name:
             # Process education entries
             for edu_entry in content.strip().split('\n'):
@@ -259,10 +259,21 @@ def parse_markdown_data(markdown_data: str) -> ParsedResumeData:
                     edu_entry = edu_entry[2:].strip()  # Remove list marker
                     if ',' in edu_entry:
                         parts = [p.strip() for p in edu_entry.split(',')]
+                        
+                        # Extract year from the parts - look for 4-digit numbers
+                        year = ""
+                        for part in parts:
+                            # Look for 4-digit year (1900-2099)
+                            import re
+                            year_match = re.search(r'\b(19|20)\d{2}\b', part)
+                            if year_match:
+                                year = year_match.group()
+                                break
+                        
                         edu_dict = {
                             "degree": parts[0] if len(parts) > 0 else "",
                             "institution": parts[1] if len(parts) > 1 else "",
-                            "year": parts[2] if len(parts) > 2 else ""
+                            "year": year
                         }
                         data["education"].append(edu_dict)
         elif "work experience" in section_name:
@@ -367,10 +378,15 @@ async def upload_resume(
             
             # Save to database if requested
             if save_to_db:
-                # Generate a unique filename to prevent collisions in S3
+                # Generate a unique filename but keep it flat without extra folders
                 original_filename = file.filename
-                unique_id = str(uuid.uuid4())
-                s3_key = f"resumes/{unique_id}/{original_filename}"
+                timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+                unique_id = str(uuid.uuid4())[:8]  # Use shorter UUID
+                filename_base = os.path.splitext(original_filename)[0]
+                filename_ext = os.path.splitext(original_filename)[1]
+                
+                # Create a flatter S3 key structure
+                s3_key = f"resumes/{filename_base}_{timestamp}_{unique_id}{filename_ext}"
                 
                 # Upload to S3
                 success, s3_url = upload_file_to_s3(temp_file_path, s3_key)
@@ -402,6 +418,7 @@ async def upload_resume(
         # Clean up temporary file in case of error
         if os.path.exists(temp_file_path):
             os.unlink(temp_file_path)
+        logger.error(f"Error processing file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
 @app.post("/parse-text/")
