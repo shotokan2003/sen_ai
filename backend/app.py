@@ -142,20 +142,48 @@ def extract_text(file, file_type):
 
 def extract_resume_data(resume_text):
     """Extracts structured data from resume text using Groq API."""
-    prompt = f"""Extract the following information from the resume text provided below:
+    prompt = f"""Extract ONLY the following information from the resume text provided below:
     - Full Name
     - Email Address
     - Phone Number
     - Location (City, State/Country)
     - Education (Degree, Institution, Year) - list all
     - Work Experience (Company, Position, Duration) - list all
-    - Skills (Technical and Soft Skills) - list all
-    - Years of Experience (calculated or extracted)
+    - Skills (Technical and Soft Skills) - list all (only names like python,nextjs,leadership,etc)
+    - Years of Experience - IMPORTANT: If not explicitly stated, calculate this by adding up all work experience durations or estimate based on career progression just show the number no explaination needed
 
     Resume Text:
     {resume_text}
 
-    Return the extracted information in a structured format. If a field is not found, indicate "Not found".
+    Return ONLY the extracted information in this exact format - do not include any additional information, analysis, or commentary:
+
+    ## Full Name
+    [Extracted name]
+
+    ## Email Address
+    [Extracted email]
+
+    ## Phone Number
+    [Extracted phone]
+
+    ## Location
+    [Extracted location]
+
+    ## Education
+    - [Degree], [Institution], [Year]
+    - [Additional education entries]
+
+    ## Work Experience
+    - [Company], [Position], [Duration]
+    - [Additional work experience entries]
+
+    ## Skills
+    [List of extracted skills]
+
+    ## Years of Experience
+    [Number of years] - YOU MUST PROVIDE THIS! Calculate if not explicitly stated in resume aand display only the number
+
+    If a field is not found, indicate "Not found" for that field only.
     """
 
     chat_completion = client.chat.completions.create(
@@ -165,7 +193,9 @@ def extract_resume_data(resume_text):
                 "content": prompt,
             }
         ],
-        model="llama3-70b-8192", # Corrected model name
+        model="llama3-70b-8192", # Using LLaMA 3 70B model
+        temperature=0.2, # Lower temperature for more consistent and precise output
+        max_tokens=1000 # Limit response length to avoid unnecessary content
     )
     return chat_completion.choices[0].message.content
 
