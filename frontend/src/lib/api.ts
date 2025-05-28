@@ -124,6 +124,13 @@ export const resumeApi = {
     return response.data;
   },
 
+  updateCandidateStatus: async (candidateId: number, status: string): Promise<Candidate> => {
+    const formData = new FormData();
+    formData.append('status', status);
+    const response = await api.patch(`/candidates/${candidateId}/status`, formData);
+    return response.data;
+  },
+
   viewResume: async (candidateId: number): Promise<{
     resume_url: string;
     filename: string;

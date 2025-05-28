@@ -704,6 +704,55 @@ def shortlist_candidate_endpoint(
     
     return {"message": f"Candidate with ID {candidate_id} has been shortlisted"}
 
+@app.patch("/candidates/{candidate_id}/status")
+def update_candidate_status(
+    candidate_id: int,
+    status: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Update a candidate's status (pending, shortlisted, rejected)
+    """
+    try:
+        # Validate status
+        valid_statuses = ['pending', 'shortlisted', 'rejected']
+        if status.lower() not in valid_statuses:
+            raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
+        
+        # Get candidate
+        candidate = db.query(Candidate).filter(Candidate.candidate_id == candidate_id).first()
+        if not candidate:
+            raise HTTPException(status_code=404, detail=f"Candidate with ID {candidate_id} not found")
+        
+        # Update status
+        status_enum = Status[status.upper()]
+        candidate.status = status_enum
+        candidate.updated_at = datetime.utcnow()
+        db.commit()
+        
+        # Convert candidate to dict for response
+        skills = [skill.skill_name for skill in candidate.skills] if candidate.skills else []
+        candidate_dict = {
+            "candidate_id": candidate.candidate_id,
+            "full_name": candidate.full_name,
+            "email": candidate.email,
+            "phone": candidate.phone,
+            "location": candidate.location,
+            "years_experience": candidate.years_experience,
+            "status": candidate.status.value,
+            "created_at": candidate.created_at.isoformat() if candidate.created_at else None,
+            "resume_available": bool(candidate.resume_file_path),
+            "original_filename": candidate.original_filename,
+            "skills": skills
+        }
+        
+        return candidate_dict
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating candidate status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error updating candidate status: {str(e)}")
+
 @app.post("/init-db")
 def initialize_database():
     """
