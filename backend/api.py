@@ -29,6 +29,9 @@ from sqlalchemy.orm import Session
 # Import S3 storage module
 from s3_storage import upload_file_to_s3, generate_presigned_url
 
+# Import shortlisting service
+from shortlisting_service import shortlist_candidates, CandidateScore, ShortlistingResult
+
 try:
     from pdf2image import convert_from_path
 except ImportError:
@@ -546,3 +549,85 @@ async def view_resume(
     except Exception as e:
         logger.error(f"Error viewing resume: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# Shortlisting endpoints
+@app.post("/shortlist-by-description/", response_model=ShortlistingResult)
+async def shortlist_by_job_description(
+    job_description: str = Form(...),
+    min_score: int = Form(70),
+    limit: Optional[int] = Form(None)
+):
+    """
+    Shortlist candidates based on a job description.
+    """
+    try:
+        if not job_description.strip():
+            raise HTTPException(status_code=400, detail="Job description cannot be empty")
+        
+        result = shortlist_candidates(job_description, min_score, limit)
+        return result
+    
+    except Exception as e:
+        logger.error(f"Error in shortlisting by description: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error shortlisting candidates: {str(e)}")
+
+@app.post("/shortlist-by-file/", response_model=ShortlistingResult)
+async def shortlist_by_job_file(
+    file: UploadFile = File(...),
+    min_score: int = Form(70),
+    limit: Optional[int] = Form(None)
+):
+    """
+    Shortlist candidates based on a job description file (PDF, DOCX, TXT).
+    """
+    try:
+        # Check if file extension is supported
+        file_extension = file.filename.split('.')[-1].lower()
+        if file_extension not in ["pdf", "docx", "txt"]:
+            raise HTTPException(status_code=400, detail="Unsupported file format. Please upload a PDF, DOCX, or TXT file.")
+        
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{file_extension}") as temp_file:
+            temp_file_path = temp_file.name
+            content = await file.read()
+            temp_file.write(content)
+        
+        try:
+            # Extract text based on file type
+            if file_extension == "pdf":
+                job_description = extract_text_from_pdf(temp_file_path)
+            elif file_extension == "docx":
+                job_description = extract_text_from_docx(temp_file_path)
+            elif file_extension == "txt":
+                job_description = extract_text_from_txt(temp_file_path)
+            
+            # Clean up temporary file
+            os.unlink(temp_file_path)
+            
+            if not job_description.strip():
+                raise HTTPException(status_code=400, detail="Could not extract text from the uploaded file")
+            
+            result = shortlist_candidates(job_description, min_score, limit)
+            return result
+        
+        except Exception as e:
+            # Clean up temporary file in case of error
+            if os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
+            raise e
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in shortlisting by file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing job description file: {str(e)}")
+
+@app.get("/shortlisting-history/")
+async def get_shortlisting_history():
+    """
+    Get history of shortlisting operations (placeholder for future implementation).
+    """
+    return {"message": "Shortlisting history feature coming soon"}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)

@@ -204,73 +204,76 @@ export default function FileUploader() {
     setResult(null)
     setParsedData(null)
   }
-
   return (
     <div className="space-y-6">
+      <div className="text-center">
+        <h2 className="text-xl font-semibold text-github-fg-default dark:text-github-dark-fg-default mb-2">
+          Upload Resume
+        </h2>
+        <p className="text-github-fg-muted dark:text-github-dark-fg-muted">
+          Upload PDF, DOC, DOCX files or paste resume text for AI-powered parsing
+        </p>
+      </div>
+
       {/* Upload Area */}
       <div 
         {...getRootProps()}
-        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-          ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400'}`}
+        className={`border-2 border-dashed rounded-md p-8 text-center cursor-pointer transition-colors
+          ${isDragActive 
+            ? 'border-github-accent-emphasis dark:border-github-dark-accent-emphasis bg-github-accent-subtle dark:bg-github-dark-accent-subtle' 
+            : 'border-github-border-default dark:border-github-dark-border-default hover:border-github-accent-emphasis dark:hover:border-github-dark-accent-emphasis'
+          }`}
       >
-        <input {...getInputProps()} />
-        <div className="flex flex-col items-center space-y-4">
+        <input {...getInputProps()} />        <div className="flex flex-col items-center space-y-4">
           {file ? (
             <>
-              <DocumentIcon className="w-12 h-12 text-blue-500" />
+              <DocumentIcon className="w-12 h-12 text-github-accent-fg dark:text-github-dark-accent-fg" />
               <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">{file.name}</span>
+                <span className="text-sm text-github-fg-muted dark:text-github-dark-fg-muted">{file.name}</span>
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
                     clearFile()
                   }}
-                  className="p-1 hover:bg-gray-100 rounded-full"
+                  className="p-1 hover:bg-github-neutral-muted dark:hover:bg-github-dark-neutral-muted rounded-full"
                 >
-                  <XMarkIcon className="w-5 h-5 text-gray-500" />
+                  <XMarkIcon className="w-5 h-5 text-github-fg-muted dark:text-github-dark-fg-muted" />
                 </button>
               </div>
             </>
           ) : (
             <>
-              <FolderIcon className="w-12 h-12 text-gray-400" />
-              <p className="text-gray-600">
+              <FolderIcon className="w-12 h-12 text-github-fg-muted dark:text-github-dark-fg-muted" />
+              <p className="text-github-fg-muted dark:text-github-dark-fg-muted">
                 {isDragActive ? (
                   "Drop your resume here"
                 ) : (
                   "Drag and drop your resume, or click to browse"
                 )}
               </p>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-github-fg-subtle dark:text-github-dark-fg-subtle">
                 Supports PDF, DOCX, and TXT files up to 10MB
               </p>
             </>
           )}
         </div>
-      </div>
-
-      {/* Controls */}
+      </div>      {/* Controls */}
       <div className="flex items-center justify-between">
         <label className="flex items-center space-x-2">
           <input
             type="checkbox"
             checked={saveToDb}
             onChange={(e) => setSaveToDb(e.target.checked)}
-            className="rounded text-blue-600"
+            className="rounded text-github-accent-emphasis dark:text-github-dark-accent-emphasis focus:ring-github-accent-emphasis dark:focus:ring-github-dark-accent-emphasis"
           />
-          <span className="text-sm text-gray-600">Save to database</span>
+          <span className="text-sm text-github-fg-muted dark:text-github-dark-fg-muted">Save to database</span>
         </label>
 
         <button
           onClick={handleUpload}
           disabled={!file || upload.isPending}
-          className={`px-4 py-2 rounded-md text-white transition-colors
-            ${!file || upload.isPending
-              ? 'bg-gray-400 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-        >
-          {upload.isPending ? (
+          className={`btn-github-primary ${!file || upload.isPending ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >          {upload.isPending ? (
             <span className="inline-flex items-center">
               <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -295,81 +298,74 @@ export default function FileUploader() {
           >
             {/* LLM Processed Results */}
             {parsedData && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900">Extracted Information</h3>
-                  <div className="mt-4 space-y-4 bg-white p-6 rounded-lg shadow-sm">
+              <div className="space-y-6">                <div>
+                  <h3 className="text-lg font-semibold text-github-fg-default dark:text-github-dark-fg-default">Extracted Information</h3>
+                  <div className="mt-4 space-y-4 github-card p-6">
                     {/* Basic Info */}
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <h4 className="font-medium text-gray-700">Name</h4>
-                        <p className="text-gray-600">{parsedData.fullName}</p>
+                        <h4 className="font-medium text-github-fg-default dark:text-github-dark-fg-default">Name</h4>
+                        <p className="text-github-fg-muted dark:text-github-dark-fg-muted">{parsedData.fullName}</p>
                       </div>
                       {parsedData.email && (
                         <div>
-                          <h4 className="font-medium text-gray-700">Email</h4>
-                          <p className="text-gray-600">{parsedData.email}</p>
+                          <h4 className="font-medium text-github-fg-default dark:text-github-dark-fg-default">Email</h4>
+                          <p className="text-github-fg-muted dark:text-github-dark-fg-muted">{parsedData.email}</p>
                         </div>
                       )}
                       {parsedData.phone && (
                         <div>
-                          <h4 className="font-medium text-gray-700">Phone</h4>
-                          <p className="text-gray-600">{parsedData.phone}</p>
+                          <h4 className="font-medium text-github-fg-default dark:text-github-dark-fg-default">Phone</h4>
+                          <p className="text-github-fg-muted dark:text-github-dark-fg-muted">{parsedData.phone}</p>
                         </div>
                       )}
                       {parsedData.location && (
                         <div>
-                          <h4 className="font-medium text-gray-700">Location</h4>
-                          <p className="text-gray-600">{parsedData.location}</p>
+                          <h4 className="font-medium text-github-fg-default dark:text-github-dark-fg-default">Location</h4>
+                          <p className="text-github-fg-muted dark:text-github-dark-fg-muted">{parsedData.location}</p>
                         </div>
                       )}
                       {parsedData.yearsExperience !== undefined && (
                         <div>
-                          <h4 className="font-medium text-gray-700">Years of Experience</h4>
-                          <p className="text-gray-600">{parsedData.yearsExperience} years</p>
+                          <h4 className="font-medium text-github-fg-default dark:text-github-dark-fg-default">Years of Experience</h4>
+                          <p className="text-github-fg-muted dark:text-github-dark-fg-muted">{parsedData.yearsExperience} years</p>
                         </div>
                       )}
-                    </div>
-
-                    {/* Education */}
+                    </div>                    {/* Education */}
                     {parsedData.education.length > 0 && (
                       <div>
-                        <h4 className="font-medium text-gray-700 mb-2">Education</h4>
+                        <h4 className="font-medium text-github-fg-default dark:text-github-dark-fg-default mb-2">Education</h4>
                         <div className="space-y-2">
                           {parsedData.education.map((edu, index) => (
-                            <div key={index} className="bg-gray-50 p-3 rounded">
-                              <p className="font-medium text-gray-800">{edu.degree}</p>
-                              <p className="text-gray-600">{edu.institution}, {edu.year}</p>
+                            <div key={index} className="bg-github-canvas-subtle dark:bg-github-dark-canvas-subtle p-3 rounded-md border border-github-border-muted dark:border-github-dark-border-muted">
+                              <p className="font-medium text-github-fg-default dark:text-github-dark-fg-default">{edu.degree}</p>
+                              <p className="text-github-fg-muted dark:text-github-dark-fg-muted">{edu.institution}, {edu.year}</p>
                             </div>
                           ))}
                         </div>
                       </div>
-                    )}
-
-                    {/* Work Experience */}
+                    )}                    {/* Work Experience */}
                     {parsedData.workExperience.length > 0 && (
                       <div>
-                        <h4 className="font-medium text-gray-700 mb-2">Work Experience</h4>
+                        <h4 className="font-medium text-github-fg-default dark:text-github-dark-fg-default mb-2">Work Experience</h4>
                         <div className="space-y-3">
                           {parsedData.workExperience.map((exp, index) => (
-                            <div key={index} className="bg-gray-50 p-3 rounded">
-                              <p className="font-medium text-gray-800">{exp.position}</p>
-                              <p className="text-gray-600">{exp.company} • {exp.duration}</p>
+                            <div key={index} className="bg-github-canvas-subtle dark:bg-github-dark-canvas-subtle p-3 rounded-md border border-github-border-muted dark:border-github-dark-border-muted">
+                              <p className="font-medium text-github-fg-default dark:text-github-dark-fg-default">{exp.position}</p>
+                              <p className="text-github-fg-muted dark:text-github-dark-fg-muted">{exp.company} • {exp.duration}</p>
                             </div>
                           ))}
                         </div>
                       </div>
-                    )}
-
-                    {/* Skills */}
+                    )}                    {/* Skills */}
                     {parsedData.skills.length > 0 && (
                       <div>
-                        <h4 className="font-medium text-gray-700 mb-2">Skills</h4>
+                        <h4 className="font-medium text-github-fg-default dark:text-github-dark-fg-default mb-2">Skills</h4>
                         <div className="flex flex-wrap gap-2">
                           {parsedData.skills.map((skill, index) => (
                             <span
                               key={index}
-                              className="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800"
+                              className="inline-flex items-center rounded-full bg-github-accent-subtle dark:bg-github-dark-accent-subtle px-3 py-1 text-sm font-medium text-github-accent-fg dark:text-github-dark-accent-fg border border-github-accent-muted dark:border-github-dark-accent-muted"
                             >
                               {skill}
                             </span>
@@ -380,13 +376,11 @@ export default function FileUploader() {
                   </div>
                 </div>
               </div>
-            )}
-
-            {/* Raw Text */}
+            )}            {/* Raw Text */}
             <div className="mt-6">
-              <h3 className="text-lg font-medium mb-2">Extracted Raw Text</h3>
-              <div className="bg-white p-4 rounded-lg shadow-sm">
-                <pre className="text-sm text-gray-600 whitespace-pre-wrap">
+              <h3 className="text-lg font-semibold text-github-fg-default dark:text-github-dark-fg-default mb-2">Extracted Raw Text</h3>
+              <div className="github-card p-4">
+                <pre className="text-sm text-github-fg-muted dark:text-github-dark-fg-muted whitespace-pre-wrap font-mono">
                   {result.extracted_text}
                 </pre>
               </div>
@@ -394,8 +388,8 @@ export default function FileUploader() {
 
             {/* Database Save Status */}
             {result.candidate_id && (
-              <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
-                <p className="text-green-700 font-medium">
+              <div className="bg-github-success-subtle dark:bg-github-dark-success-subtle border border-github-success-muted dark:border-github-dark-success-muted p-4 rounded-md">
+                <p className="text-github-success-fg dark:text-github-dark-success-fg font-medium">
                   Resume data saved to database with ID: {result.candidate_id}
                 </p>
               </div>

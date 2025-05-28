@@ -45,6 +45,22 @@ export interface ParsedData {
   years_experience?: number;
 }
 
+export interface CandidateScore {
+  candidate_id: number;
+  candidate_name: string;
+  score: number;
+  reasoning: string;
+  strengths: string[];
+  weaknesses: string[];
+}
+
+export interface ShortlistingResult {
+  job_description: string;
+  total_candidates: number;
+  shortlisted_candidates: CandidateScore[];
+  scoring_criteria: string;
+}
+
 export const resumeApi = {
   uploadResume: async (file: File, parse: boolean = true, saveToDb: boolean = true): Promise<UploadResponse> => {
     const formData = new FormData();
@@ -88,6 +104,39 @@ export const resumeApi = {
 
   initDb: async (): Promise<{ message: string }> => {
     const response = await api.post('/init-db');
+    return response.data;
+  },
+
+  shortlistByDescription: async (
+    jobDescription: string, 
+    minScore: number = 70, 
+    limit?: number
+  ): Promise<ShortlistingResult> => {
+    const formData = new FormData();
+    formData.append('job_description', jobDescription);
+    formData.append('min_score', String(minScore));
+    if (limit) formData.append('limit', String(limit));
+    
+    const response = await api.post<ShortlistingResult>('/shortlist-by-description/', formData);
+    return response.data;
+  },
+
+  shortlistByFile: async (
+    file: File, 
+    minScore: number = 70, 
+    limit?: number
+  ): Promise<ShortlistingResult> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('min_score', String(minScore));
+    if (limit) formData.append('limit', String(limit));
+    
+    const response = await api.post<ShortlistingResult>('/shortlist-by-file/', formData);
+    return response.data;
+  },
+
+  getShortlistingHistory: async (): Promise<{ message: string }> => {
+    const response = await api.get('/shortlisting-history/');
     return response.data;
   },
 };
