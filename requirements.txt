@@ -1,6 +1,7 @@
 streamlit
 groq
 python-dotenv
+mysql-connector-python
 # SQLAlchemy
 pypdf2
 python-docx
@@ -10,4 +11,5 @@ pdf2image
 fastapi
 uvicorn
 python-multipart
+boto3
 # Add other database-specific drivers if aevan is not SQLite, e.g., psycopg2-binary for PostgreSQL
