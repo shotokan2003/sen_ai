@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Processing System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+        .resume-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .parsed-data {
+            white-space: pre-line;
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 0.25rem;
+        }
+        .error {
+            color: #dc3545;
+        }
+        .spinner-border {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container resume-container">
+        <h1 class="mb-4 text-center">Resume Processing System</h1>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                Upload Resume
+            </div>
+            <div class="card-body">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="resumeFile" class="form-label">Select a resume file (PDF, DOCX, TXT)</label>
+                        <input class="form-control" type="file" id="resumeFile" name="file" accept=".pdf,.docx,.txt" required>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary" id="uploadBtn">
+                            <span class="spinner-border spinner-border-sm me-2" id="uploadSpinner" role="status" aria-hidden="true"></span>
+                            Upload and Process
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="extractedTextSection" class="card mb-4" style="display: none;">
+            <div class="card-header">
+                Extracted Text
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <textarea class="form-control" id="extractedText" rows="10" readonly></textarea>
+                </div>
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-success" id="parseBtn">
+                        <span class="spinner-border spinner-border-sm me-2" id="parseSpinner" role="status" aria-hidden="true"></span>
+                        Extract Information
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="parsedDataSection" class="card" style="display: none;">
+            <div class="card-header">
+                Extracted Information
+            </div>
+            <div class="card-body">
+                <div id="parsedData" class="parsed-data"></div>
+            </div>
+        </div>
+
+        <div id="errorSection" class="alert alert-danger mt-4" style="display: none;">
+            <div id="errorMessage"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const apiUrl = 'http://localhost:8000'; // Change this if your API is hosted elsewhere
+            const uploadForm = document.getElementById('uploadForm');
+            const extractedTextSection = document.getElementById('extractedTextSection');
+            const extractedText = document.getElementById('extractedText');
+            const parsedDataSection = document.getElementById('parsedDataSection');
+            const parsedData = document.getElementById('parsedData');
+            const errorSection = document.getElementById('errorSection');
+            const errorMessage = document.getElementById('errorMessage');
+            const parseBtn = document.getElementById('parseBtn');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const parseSpinner = document.getElementById('parseSpinner');
+            const uploadSpinner = document.getElementById('uploadSpinner');
+
+            // Handle file upload
+            uploadForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const fileInput = document.getElementById('resumeFile');
+                
+                if (!fileInput.files.length) {
+                    showError('Please select a file to upload.');
+                    return;
+                }
+
+                const file = fileInput.files[0];
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('parse', 'false');
+
+                // Show loading state
+                uploadBtn.disabled = true;
+                uploadSpinner.style.display = 'inline-block';
+                hideError();
+
+                fetch(`${apiUrl}/upload-resume/`, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.detail || 'Error uploading file');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Display the extracted text
+                    extractedText.value = data.extracted_text;
+                    extractedTextSection.style.display = 'block';
+                    
+                    // Reset loading state
+                    uploadBtn.disabled = false;
+                    uploadSpinner.style.display = 'none';
+                })
+                .catch(error => {
+                    showError(error.message);
+                    uploadBtn.disabled = false;
+                    uploadSpinner.style.display = 'none';
+                });
+            });
+
+            // Handle parse button click
+            parseBtn.addEventListener('click', function() {
+                const text = extractedText.value.trim();
+                
+                if (!text) {
+                    showError('No text to parse.');
+                    return;
+                }
+
+                // Show loading state
+                parseBtn.disabled = true;
+                parseSpinner.style.display = 'inline-block';
+                hideError();
+
+                const formData = new FormData();
+                formData.append('text', text);
+
+                fetch(`${apiUrl}/parse-text/`, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.detail || 'Error parsing text');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Convert Markdown to HTML (simple conversion for ## headers and lists)
+                    let htmlContent = data.parsed_data
+                        .replace(/## (.*)/g, '<h2>$1</h2>')
+                        .replace(/- (.*)/g, '<li>$1</li>')
+                        .replace(/\n\n/g, '<br>');
+                    
+                    // Wrap lists in <ul> tags
+                    htmlContent = htmlContent.replace(/<li>.*?(<h2>|$)/gs, function(match) {
+                        return '<ul>' + match.replace(/<h2>/g, '</ul><h2>');
+                    });
+                    htmlContent = htmlContent.replace(/<\/ul><h2>/g, '</ul>\n<h2>');
+                    
+                    // Display the parsed data
+                    parsedData.innerHTML = htmlContent;
+                    parsedDataSection.style.display = 'block';
+                    
+                    // Reset loading state
+                    parseBtn.disabled = false;
+                    parseSpinner.style.display = 'none';
+                })
+                .catch(error => {
+                    showError(error.message);
+                    parseBtn.disabled = false;
+                    parseSpinner.style.display = 'none';
+                });
+            });
+
+            // Helper functions
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorSection.style.display = 'block';
+            }
+
+            function hideError() {
+                errorSection.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
