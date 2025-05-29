@@ -29,10 +29,9 @@ const UserProfile: React.FC = () => {
               const target = e.target as HTMLImageElement;
               target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=6366f1&color=fff`;
             }}
-          />
-          <div className="hidden md:block text-left">
-            <p className="text-sm font-medium text-gray-700">{user.name}</p>
-            <p className="text-xs text-gray-500">{user.email}</p>
+          />          <div className="hidden md:block text-left">
+            <p className="text-sm font-medium text-github-fg-onEmphasis">{user.name}</p>
+            <p className="text-xs text-github-fg-muted">{user.email}</p>
           </div>
           <svg
             className={`h-4 w-4 text-gray-400 transition-transform ${isMenuOpen ? 'rotate-180' : ''}`}
@@ -45,23 +44,22 @@ const UserProfile: React.FC = () => {
         </div>
       </button>
 
-      {isMenuOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-github-canvas-subtle dark:bg-github-dark-canvas-subtle rounded-md shadow-lg py-1 z-50 border border-github-border-default dark:border-github-dark-border-default">
-          <div className="px-4 py-2 border-b border-gray-100">
-            <p className="text-sm font-medium text-gray-900">{user.name}</p>
-            <p className="text-xs text-gray-500">{user.email}</p>
+      {isMenuOpen && (        <div className="absolute right-0 mt-2 w-48 bg-github-canvas-subtle dark:bg-github-dark-canvas-subtle rounded-md shadow-lg py-1 z-50 border border-github-border-default dark:border-github-dark-border-default">
+          <div className="px-4 py-2 border-b border-github-border-muted">
+            <p className="text-sm font-medium text-github-fg-onEmphasis">{user.name}</p>
+            <p className="text-xs text-github-fg-muted">{user.email}</p>
           </div>
           
           <button
             onClick={() => setIsMenuOpen(false)}
-            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            className="block w-full text-left px-4 py-2 text-sm text-github-fg-onEmphasis hover:bg-github-neutral-muted"
           >
             Profile Settings
           </button>
           
           <button
             onClick={handleLogout}
-            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            className="block w-full text-left px-4 py-2 text-sm text-github-fg-onEmphasis hover:bg-github-neutral-muted"
           >
             Sign Out
           </button>
