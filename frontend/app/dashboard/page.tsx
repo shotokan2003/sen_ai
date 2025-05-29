@@ -6,9 +6,8 @@ import ResumeProcessor from '@/components/ResumeProcessor';
 
 const DashboardPage: React.FC = () => {
   return (
-    <ProtectedRoute>
-      <div className="space-y-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <ProtectedRoute>      <div className="space-y-6">
+        <div className="bg-github-canvas-subtle rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">
             Candidate Management Dashboard
           </h2>

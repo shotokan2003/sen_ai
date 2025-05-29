@@ -3,10 +3,10 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
+  --background: #f6f8fa;
   --foreground: #24292f;
   --border: #d0d7de;
-  --github-canvas-default: #ffffff;
+  --github-canvas-default: #f6f8fa;
   --github-canvas-subtle: #f6f8fa;
   --github-fg-default: #24292f;
   --github-fg-muted: #656d76;
@@ -19,11 +19,11 @@
   --github-attention-emphasis: #9a6700;
   --github-btn-primary-bg: #2da44e;
   --github-btn-primary-hover-bg: #2c974b;
-  --github-btn-primary-text: #ffffff;
+  --github-btn-primary-text: #f6f8fa;
   --github-btn-bg: #f6f8fa;
   --github-btn-hover-bg: #f3f4f6;
   --github-btn-border: #d0d7de;
-  --github-input-bg: #ffffff;
+  --github-input-bg: #f6f8fa;
   --github-input-border: #d0d7de;
 }
 
@@ -45,7 +45,7 @@
     --github-attention-emphasis: #d29922;
     --github-btn-primary-bg: #238636;
     --github-btn-primary-hover-bg: #2ea043;
-    --github-btn-primary-text: #ffffff;
+    --github-btn-primary-text: #f6f8fa;
     --github-btn-bg: #21262d;
     --github-btn-hover-bg: #30363d;
     --github-btn-border: #30363d;

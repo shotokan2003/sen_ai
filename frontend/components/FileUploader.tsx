@@ -24,53 +24,7 @@ export default function FileUploader() {
   const [files, setFiles] = useState<FileWithId[]>([])
   const [saveToDb, setSaveToDb] = useState(true)
   const [batchResult, setBatchResult] = useState<BatchProcessingResponse | null>(null)
-  const [uploadMode, setUploadMode] = useState<'single' | 'batch'>('batch')
   const [duplicateHandling, setDuplicateHandling] = useState<DuplicateHandling>('strict')
-
-  // Single file upload mutation (for backward compatibility)
-  const uploadSingle = useMutation({
-  mutationFn: async () => {
-      if (!files[0]) throw new Error('No file selected')
-      return resumeApi.uploadResume(files[0], true, saveToDb, duplicateHandling)
-    },
-    onSuccess: (data) => {
-      if (data) {
-        setBatchResult({
-          batch_id: 'single-upload',
-          total_files: 1,
-          successful: 1,
-          failed: 0,
-          duplicates: 0,
-          results: [{
-            filename: files[0].name,
-            status: 'success',
-            candidate_id: data.candidate_id,
-            extracted_text: data.extracted_text,
-            parsed_data: data.parsed_data,
-            message: 'Successfully processed'
-          }]
-        })
-        toast.success('Resume processed successfully!')
-      }
-    },
-    onError: (error: unknown) => {
-      console.error('Upload error:', error)
-      const message = error instanceof Error ? error.message : 'Failed to process resume'
-      toast.error(message)
-      setBatchResult({
-        batch_id: 'single-upload',
-        total_files: 1,
-        successful: 0,
-        failed: 1,
-        duplicates: 0,
-        results: [{
-          filename: files[0]?.name || 'unknown',
-          status: 'error',
-          message: message
-        }]
-      })
-    }
-  })
 
   // Batch upload mutation
   const uploadBatch = useMutation({
@@ -89,7 +43,6 @@ export default function FileUploader() {
       toast.error(message)
     }
   })
-
   const onDrop = useCallback((acceptedFiles: File[]) => {
     // Add unique IDs to files
     const filesWithId: FileWithId[] = acceptedFiles.map(file => {
@@ -100,15 +53,9 @@ export default function FileUploader() {
       return Object.assign(file, { id: `${file.name}-${Date.now()}-${Math.random()}` })
     }).filter(Boolean) as FileWithId[]
 
-    if (uploadMode === 'single') {
-      // Single file mode - replace existing file
-      setFiles(filesWithId.slice(0, 1))
-    } else {
-      // Batch mode - add to existing files
-      setFiles(prev => [...prev, ...filesWithId])
-    }
-  }, [uploadMode])
-
+    // Add to existing files
+    setFiles(prev => [...prev, ...filesWithId])
+  }, [])
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
@@ -116,7 +63,7 @@ export default function FileUploader() {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
       'text/plain': ['.txt']
     },
-    multiple: uploadMode === 'batch'
+    multiple: true
   })
 
   const removeFile = (fileId: string) => {
@@ -127,18 +74,13 @@ export default function FileUploader() {
     setFiles([])
     setBatchResult(null)
   }
-
   const handleUpload = () => {
     if (files.length === 0) {
       toast.error('Please select files to upload')
       return
     }
 
-    if (uploadMode === 'single' || files.length === 1) {
-      uploadSingle.mutate()
-    } else {
-      uploadBatch.mutate()
-    }
+    uploadBatch.mutate()
   }
 
   const getStatusIcon = (status: string) => {
@@ -167,59 +109,30 @@ export default function FileUploader() {
     }
   }
 
-  const isUploading = uploadSingle.isPending || uploadBatch.isPending
-
+  const isUploading = uploadBatch.isPending
   return (
-    <div className="space-y-6">
-      {/* Upload Mode Toggle */}
-      <div className="flex space-x-4 border-b border-github-border-default dark:border-github-border-default-dark">
-        <button
-          onClick={() => {
-            setUploadMode('single')
-            setFiles(files.slice(0, 1)) // Keep only first file
-          }}
-          className={`pb-2 px-1 border-b-2 font-medium text-sm ${
-            uploadMode === 'single'
-              ? 'border-github-accent-fg dark:border-github-accent-fg-dark text-github-accent-fg dark:text-github-accent-fg-dark'
-              : 'border-transparent text-github-fg-muted dark:text-github-fg-muted-dark hover:text-github-fg-default dark:hover:text-github-fg-default-dark'
-          }`}
-        >
-          Single Upload
-        </button>
-        <button
-          onClick={() => setUploadMode('batch')}
-          className={`pb-2 px-1 border-b-2 font-medium text-sm ${
-            uploadMode === 'batch'
-              ? 'border-github-accent-fg dark:border-github-accent-fg-dark text-github-accent-fg dark:text-github-accent-fg-dark'
-              : 'border-transparent text-github-fg-muted dark:text-github-fg-muted-dark hover:text-github-fg-default dark:hover:text-github-fg-default-dark'
-          }`}
-        >
-          Batch Upload
-        </button>
-      </div>
-
-      {/* File Drop Zone */}
+    <div className="space-y-6">      {/* File Drop Zone */}
       <div 
         {...getRootProps()}
         className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
           ${isDragActive 
             ? 'border-github-accent-fg dark:border-github-accent-fg-dark bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark' 
             : 'border-github-border-default dark:border-github-border-default-dark hover:border-github-accent-fg dark:hover:border-github-accent-fg-dark'
-          } bg-github-canvas-default dark:bg-github-canvas-default-dark`}
+          } bg-github-canvas-subtle dark:bg-github-canvas-default-dark`}
       >
         <input {...getInputProps()} />
         <div className="flex flex-col items-center space-y-4">
           <FolderIcon className="w-12 h-12 text-github-fg-muted dark:text-github-fg-muted-dark" />
           <p className="text-github-fg-default dark:text-github-fg-default-dark">
             {isDragActive ? (
-              `Drop your ${uploadMode === 'batch' ? 'files' : 'file'} here`
+              "Drop your files here"
             ) : (
-              `Drag and drop ${uploadMode === 'batch' ? 'resumes' : 'resume'}, or click to browse`
+              "Drag and drop resumes, or click to browse"
             )}
           </p>
           <p className="text-sm text-github-fg-muted dark:text-github-fg-muted-dark">
             Supports PDF, DOCX, and TXT files up to 10MB each
-            {uploadMode === 'batch' && ' (Maximum 50 files per batch)'}
+            (Maximum 50 files per batch)
           </p>
         </div>
       </div>
@@ -261,23 +174,20 @@ export default function FileUploader() {
         </div>
       )}      {/* Options */}
       <div className="flex items-center space-x-6">
-        <label className="flex items-center space-x-2">
-          <input
+        <label className="flex items-center space-x-2">          <input
             type="checkbox"
             checked={saveToDb}
             onChange={(e) => setSaveToDb(e.target.checked)}
-            className="github-input"
-          />
-          <span className="text-sm text-github-fg-default dark:text-github-fg-default-dark">Save to database</span>
+            className="accent-github-accent-fg dark:accent-github-accent-fg-dark cursor-pointer"          />
+          <span className="text-sm text-github-fg-muted dark:text-github-fg-muted-dark">Save to database</span>
         </label>
         
         {saveToDb && (
           <div className="flex items-center space-x-2">
-            <span className="text-sm text-github-fg-default dark:text-github-fg-default-dark">Duplicate handling:</span>
+            <span className="text-sm text-github-fg-muted dark:text-github-fg-muted-dark">Duplicate handling:</span>
             <select 
               value={duplicateHandling}
-              onChange={(e) => setDuplicateHandling(e.target.value as DuplicateHandling)}
-              className="github-input text-sm bg-github-canvas-default dark:bg-github-canvas-default-dark border border-github-border-default dark:border-github-border-default-dark rounded px-2 py-1"
+              onChange={(e) => setDuplicateHandling(e.target.value as DuplicateHandling)}              className="github-input text-sm bg-github-canvas-subtle dark:bg-github-canvas-default-dark border border-github-border-default dark:border-github-border-default-dark rounded px-2 py-1 text-github-fg-muted dark:text-github-fg-muted-dark"
             >
               <option value="strict">Strict (No duplicates)</option>
               <option value="allow_updates">Allow updates (Same person)</option>
@@ -296,17 +206,16 @@ export default function FileUploader() {
             files.length === 0 || isUploading ? 'opacity-50 cursor-not-allowed' : ''
           }`}
         >
-          <CloudArrowUpIcon className="w-5 h-5 mr-2" />
-          {isUploading ? (
+          <CloudArrowUpIcon className="w-5 h-5 mr-2" />          {isUploading ? (
             <span className="inline-flex items-center">
-              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-github-fg-onEmphasis dark:text-github-fg-onEmphasis" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              {uploadMode === 'batch' && files.length > 1 ? 'Processing Batch...' : 'Processing...'}
+              {files.length > 1 ? 'Processing Batch...' : 'Processing...'}
             </span>
           ) : (
-            `Upload ${uploadMode === 'batch' && files.length > 1 ? 'Batch' : ''} (${files.length} file${files.length > 1 ? 's' : ''})`
+            `Upload ${files.length > 1 ? 'Batch' : ''} (${files.length} file${files.length > 1 ? 's' : ''})`
           )}
         </button>
         

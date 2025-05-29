@@ -32,9 +32,8 @@ const LoginPage: React.FC = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="max-w-md w-full space-y-8 p-8">
-        <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-indigo-600 rounded-full flex items-center justify-center">
-            <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="text-center">          <div className="mx-auto h-16 w-16 bg-indigo-600 rounded-full flex items-center justify-center">
+            <svg className="h-8 w-8 text-github-fg-onEmphasis" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </div>
@@ -45,8 +44,7 @@ const LoginPage: React.FC = () => {
             Sign in to access your candidate management dashboard
           </p>
         </div>
-        
-        <div className="bg-white rounded-lg shadow-lg p-6">
+          <div className="bg-github-canvas-subtle rounded-lg shadow-lg p-6">
           <div className="space-y-4">
             <div className="text-center">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
@@ -57,9 +55,8 @@ const LoginPage: React.FC = () => {
               </p>
             </div>
             
-            <button
-              onClick={login}
-              className="w-full flex justify-center items-center px-4 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200"
+            <button              onClick={login}
+              className="w-full flex justify-center items-center px-4 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-github-fg-onEmphasis bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200"
             >
               <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -78,8 +75,7 @@ const LoginPage: React.FC = () => {
           </div>
         </div>
         
-        <div className="text-center">
-          <div className="bg-white rounded-lg shadow p-4">
+        <div className="text-center">          <div className="bg-github-canvas-subtle rounded-lg shadow p-4">
             <h4 className="font-medium text-gray-900 mb-2">Features</h4>
             <ul className="text-sm text-gray-600 space-y-1">
               <li>• Upload and process resumes</li>

@@ -71,7 +71,7 @@ export default function CandidateFiltersComponent({ onFiltersChangeAction }: Can
   }
 
   return (
-    <div className="bg-white dark:bg-github-dark-canvas-default rounded-lg border border-github-border-default dark:border-github-dark-border-default mb-6">
+    <div className="bg-github-canvas-subtle dark:bg-github-dark-canvas-default rounded-lg border border-github-border-default dark:border-github-dark-border-default mb-6">
       {/* Filter Toggle Header */}
       <div className="px-4 py-3 border-b border-github-border-default dark:border-github-dark-border-default">
         <div className="flex items-center justify-between">
@@ -82,7 +82,7 @@ export default function CandidateFiltersComponent({ onFiltersChangeAction }: Can
             <FunnelIcon className="h-5 w-5" />
             <span className="font-medium">Advanced Filters</span>
             {hasActiveFilters() && (
-              <span className="bg-github-accent-fg text-white px-2 py-1 rounded-full text-xs">
+              <span className="bg-github-accent-fg text-github-fg-onEmphasis dark:text-github-fg-onEmphasis px-2 py-1 rounded-full text-xs">
                 {[filters.status, filters.location, filters.company, filters.position, filters.education, ...(filters.skills || [])].filter(Boolean).length + (filters.minExperience !== undefined ? 1 : 0) + (filters.maxExperience !== undefined ? 1 : 0)}
               </span>
             )}

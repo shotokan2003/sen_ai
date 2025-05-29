@@ -115,9 +115,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ url, fileType }) => {
                 setIsLoading(true)
                 setViewerError(false)
               }}
-              className={`px-3 py-1 text-xs rounded border ${
-                currentViewer === 'office'
-                  ? 'bg-github-accent-emphasis text-white border-github-accent-emphasis'
+              className={`px-3 py-1 text-xs rounded border ${                currentViewer === 'office'
+                  ? 'bg-github-accent-emphasis text-github-fg-onEmphasis dark:text-github-fg-onEmphasis border-github-accent-emphasis'
                   : 'bg-github-btn-bg hover:bg-github-btn-hover-bg border-github-border-default dark:border-github-dark-border-default text-github-fg-default dark:text-github-dark-fg-default'
               }`}
             >
@@ -129,9 +128,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ url, fileType }) => {
                 setIsLoading(true)
                 setViewerError(false)
               }}
-              className={`px-3 py-1 text-xs rounded border ${
-                currentViewer === 'google'
-                  ? 'bg-github-accent-emphasis text-white border-github-accent-emphasis'
+              className={`px-3 py-1 text-xs rounded border ${                currentViewer === 'google'
+                  ? 'bg-github-accent-emphasis text-github-fg-onEmphasis dark:text-github-fg-onEmphasis border-github-accent-emphasis'
                   : 'bg-github-btn-bg hover:bg-github-btn-hover-bg border-github-border-default dark:border-github-dark-border-default text-github-fg-default dark:text-github-dark-fg-default'
               }`}
             >
@@ -149,7 +147,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ url, fileType }) => {
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-3 py-1 text-xs bg-github-success-emphasis hover:bg-github-success-emphasis text-white rounded"
+              className="px-3 py-1 text-xs bg-github-success-emphasis hover:bg-github-success-emphasis text-github-fg-onEmphasis dark:text-github-fg-onEmphasis rounded"
             >
               Open in New Tab
             </a>
@@ -164,7 +162,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ url, fileType }) => {
       <div className="absolute inset-0 w-full h-full flex flex-col">
         <div className="flex-1 relative">
           {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-github-canvas-default dark:bg-github-dark-canvas-default bg-opacity-75 z-10">
+            <div className="absolute inset-0 flex items-center justify-center bg-github-canvas-subtle dark:bg-github-dark-canvas-default bg-opacity-75 z-10">
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
@@ -174,7 +172,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ url, fileType }) => {
           )}
           
           {viewerError && currentViewer === 'direct' && (
-            <div className="absolute inset-0 flex items-center justify-center bg-github-canvas-default dark:bg-github-dark-canvas-default">
+            <div className="absolute inset-0 flex items-center justify-center bg-github-canvas-subtle dark:bg-github-dark-canvas-default">
               <div className="text-center p-8">
                 <h3 className="text-lg font-medium text-github-fg-default dark:text-github-dark-fg-default mb-4">
                   Unable to preview this document

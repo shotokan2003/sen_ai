@@ -15,7 +15,10 @@ import {
   EyeIcon,
   CheckCircleIcon,
   ClockIcon,
-  UserGroupIcon
+  UserGroupIcon,
+  DocumentTextIcon,
+  ArrowUpTrayIcon,
+  PencilIcon
 } from '@heroicons/react/24/outline'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { resumeApi, type ShortlistingResult } from '@/src/lib/api'
@@ -66,6 +69,7 @@ export default function CandidateShortlisting() {
       toast.error(error.message || 'Failed to update candidate status')
     }
   })
+  
   // View resume handler
   const handleViewResume = async (candidateId: number) => {
     try {
@@ -153,6 +157,7 @@ export default function CandidateShortlisting() {
     if (score >= 70) return 'text-github-attention-fg dark:text-github-attention-fg-dark bg-github-attention-subtle dark:bg-github-attention-subtle-dark'
     return 'text-github-danger-fg dark:text-github-danger-fg-dark bg-github-danger-subtle dark:bg-github-danger-subtle-dark'
   }
+  
   const getScoreIcon = (score: number) => {
     if (score >= 90) return <TrophyIcon className="w-5 h-5" />
     if (score >= 80) return <StarIcon className="w-5 h-5" />
@@ -173,14 +178,14 @@ export default function CandidateShortlisting() {
             title="Resume Preview"
           />
         </div>
-      )    } else if (type === 'doc' || type === 'docx') {
+      )
+    } else if (type === 'doc' || type === 'docx') {
       // DOC/DOCX files with multiple viewer options
       return (
         <div className="relative w-full" style={{ height: '80vh' }}>
           <div className="absolute inset-0 w-full h-full flex flex-col">
-            {/* Try multiple viewers with fallbacks */}
+            {/* Primary: Microsoft Office Online Viewer */}
             <div className="flex-1 relative">
-              {/* Primary: Microsoft Office Online Viewer */}
               <iframe
                 src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(resumeModal.url)}`}
                 className="absolute inset-0 w-full h-full border-0"
@@ -224,7 +229,7 @@ export default function CandidateShortlisting() {
                   href={resumeModal.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-2 py-1 bg-github-accent-emphasis hover:bg-github-accent-emphasis text-white rounded"
+                  className="px-2 py-1 bg-github-accent-emphasis hover:bg-github-accent-emphasis text-github-fg-onEmphasis dark:text-github-fg-onEmphasis rounded"
                 >
                   Open Direct Link
                 </a>
@@ -243,7 +248,8 @@ export default function CandidateShortlisting() {
             </h3>
             <p className="text-github-fg-muted dark:text-github-fg-muted-dark mb-4">
               File type: {type || 'Unknown'}
-            </p>            <p className="text-github-fg-muted dark:text-github-fg-muted-dark">
+            </p>
+            <p className="text-github-fg-muted dark:text-github-fg-muted-dark">
               Please use the &quot;Open in New Tab&quot; button below to view the file.
             </p>
           </div>
@@ -253,191 +259,222 @@ export default function CandidateShortlisting() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* View Toggle */}
-      <div className="flex space-x-4 border-b border-github-border-default dark:border-github-border-default-dark">
-        <button
-          onClick={() => setShowAllCandidates(false)}
-          className={`pb-2 px-1 border-b-2 font-medium text-sm ${
-            !showAllCandidates
-              ? 'border-github-accent-fg dark:border-github-accent-fg-dark text-github-accent-fg dark:text-github-accent-fg-dark'
-              : 'border-transparent text-github-fg-muted dark:text-github-fg-muted-dark hover:text-github-fg-default dark:hover:text-github-fg-default-dark'
-          }`}
-        >
-          Shortlist by Job Description
-        </button>
-        <button
-          onClick={() => setShowAllCandidates(true)}
-          className={`pb-2 px-1 border-b-2 font-medium text-sm ${
-            showAllCandidates
-              ? 'border-github-accent-fg dark:border-github-accent-fg-dark text-github-accent-fg dark:text-github-accent-fg-dark'
-              : 'border-transparent text-github-fg-muted dark:text-github-fg-muted-dark hover:text-github-fg-default dark:hover:text-github-fg-default-dark'
-          }`}
-        >
-          Manage All Candidates
-        </button>
+    <div className="space-y-8">
+      {/* Improved Main Navigation Tabs */}
+      <div className="github-card p-0 overflow-hidden">
+        <div className="flex border-b border-github-border-default dark:border-github-border-default-dark">
+          <button
+            onClick={() => setShowAllCandidates(false)}
+            className={`flex-1 flex items-center justify-center py-4 px-6 text-sm font-medium transition-colors ${              !showAllCandidates
+                ? 'bg-github-canvas-subtle dark:bg-github-canvas-default-dark text-github-accent-fg dark:text-github-accent-fg-dark border-b-2 border-github-accent-fg dark:border-github-accent-fg-dark'
+                : 'bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark text-github-fg-muted dark:text-github-fg-muted-dark hover:bg-github-canvas-default dark:hover:bg-github-canvas-default-dark'
+            }`}
+          >
+            <BriefcaseIcon className="w-5 h-5 mr-2" />
+            Shortlist by Job Description
+          </button>
+          <button
+            onClick={() => setShowAllCandidates(true)}
+            className={`flex-1 flex items-center justify-center py-4 px-6 text-sm font-medium transition-colors ${              showAllCandidates
+                ? 'bg-github-canvas-subtle dark:bg-github-canvas-default-dark text-github-accent-fg dark:text-github-accent-fg-dark border-b-2 border-github-accent-fg dark:border-github-accent-fg-dark'
+                : 'bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark text-github-fg-muted dark:text-github-fg-muted-dark hover:bg-github-canvas-default dark:hover:bg-github-canvas-default-dark'
+            }`}
+          >
+            <UserGroupIcon className="w-5 h-5 mr-2" />
+            Manage All Candidates
+          </button>
+        </div>
       </div>
 
       {!showAllCandidates ? (
-        /* Original shortlisting interface */
-        <>
-          {/* Input Method Toggle */}
-          <div className="flex space-x-4 border-b border-github-border-default dark:border-github-border-default-dark">
-            <button
-              onClick={() => setInputMethod('text')}
-              className={`pb-2 px-1 border-b-2 font-medium text-sm ${
-                inputMethod === 'text'
-                  ? 'border-github-accent-fg dark:border-github-accent-fg-dark text-github-accent-fg dark:text-github-accent-fg-dark'
-                  : 'border-transparent text-github-fg-muted dark:text-github-fg-muted-dark hover:text-github-fg-default dark:hover:text-github-fg-default-dark'
-              }`}
-            >
-              Write Job Description
-            </button>
-            <button
-              onClick={() => setInputMethod('file')}
-              className={`pb-2 px-1 border-b-2 font-medium text-sm ${
-                inputMethod === 'file'
-                  ? 'border-github-accent-fg dark:border-github-accent-fg-dark text-github-accent-fg dark:text-github-accent-fg-dark'
-                  : 'border-transparent text-github-fg-muted dark:text-github-fg-muted-dark hover:text-github-fg-default dark:hover:text-github-fg-default-dark'
-              }`}
-            >
-              Upload Job Description
-            </button>
-          </div>
+        /* Improved shortlisting interface */
+        <div className="space-y-6">
+          <div className="github-card">            <h3 className="text-lg font-medium mb-6 text-github-fg-muted dark:text-github-fg-muted-dark border-b border-github-border-default dark:border-github-border-default-dark pb-3">
+              Job Description Input
+            </h3>
 
-          {/* Job Description Input */}
-          {inputMethod === 'text' ? (
-            <div>
-              <label htmlFor="jobDescription" className="block text-sm font-medium text-github-fg-default dark:text-github-fg-default-dark mb-2">
-                Job Description
-              </label>
-              <textarea
-                id="jobDescription"
-                value={jobDescription}
-                onChange={(e) => setJobDescription(e.target.value)}
-                placeholder="Enter the job description, required skills, qualifications, and experience requirements..."
-                className="github-input w-full h-48"
-              />
-            </div>
-          ) : (
-            <div 
-              {...getRootProps()}
-              className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-                ${isDragActive 
-                  ? 'border-github-accent-fg dark:border-github-accent-fg-dark bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark' 
-                  : 'border-github-border-default dark:border-github-border-default-dark hover:border-github-accent-fg dark:hover:border-github-accent-fg-dark'
-                }`}
-            >
-              <input {...getInputProps()} />
-              <div className="flex flex-col items-center space-y-4">
-                {file ? (
-                  <>
-                    <DocumentIcon className="w-12 h-12 text-github-accent-fg dark:text-github-accent-fg-dark" />
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm text-github-fg-default dark:text-github-fg-default-dark">{file.name}</span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setFile(null)
-                        }}
-                        className="p-1 hover:bg-github-canvas-subtle dark:hover:bg-github-canvas-subtle-dark rounded-full"
-                      >
-                        <XMarkIcon className="w-5 h-5 text-github-fg-muted dark:text-github-fg-muted-dark" />
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <FolderIcon className="w-12 h-12 text-github-fg-muted dark:text-github-fg-muted-dark" />
-                    <p className="text-github-fg-default dark:text-github-fg-default-dark">
-                      {isDragActive ? (
-                        "Drop your job description here"
-                      ) : (
-                        "Drag and drop job description, or click to browse"
-                      )}
-                    </p>
-                    <p className="text-sm text-github-fg-muted dark:text-github-fg-muted-dark">
-                      Supports PDF, DOCX, and TXT files up to 10MB
-                    </p>
-                  </>
-                )}
+            {/* Improved Input Method Toggle */}
+            <div className="bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark p-3 rounded-md mb-6">              <div className="flex rounded-md overflow-hidden border border-github-border-default dark:border-github-border-default-dark">
+                <button                  onClick={() => setInputMethod('text')}
+                  className={`flex-1 flex items-center justify-center space-x-2 py-3 px-4 text-sm font-medium transition-colors ${
+                    inputMethod === 'text'
+                      ? 'bg-github-btn-primary-bg text-github-fg-onEmphasis dark:text-github-fg-onEmphasis'
+                      : 'bg-github-canvas-default dark:bg-github-canvas-default-dark text-github-fg-default dark:text-github-fg-default-dark hover:bg-github-canvas-subtle dark:hover:bg-github-canvas-subtle-dark'
+                  }`}
+                >
+                  <PencilIcon className="w-4 h-4" />
+                  <span>Write Description</span>
+                </button>
+                <button                  onClick={() => setInputMethod('file')}
+                  className={`flex-1 flex items-center justify-center space-x-2 py-3 px-4 text-sm font-medium transition-colors ${
+                    inputMethod === 'file'
+                      ? 'bg-github-btn-primary-bg text-github-fg-onEmphasis dark:text-github-fg-onEmphasis'
+                      : 'bg-github-canvas-default dark:bg-github-canvas-default-dark text-github-fg-default dark:text-github-fg-default-dark hover:bg-github-canvas-subtle dark:hover:bg-github-canvas-subtle-dark'
+                  }`}
+                >
+                  <ArrowUpTrayIcon className="w-4 h-4" />
+                  <span>Upload Document</span>
+                </button>
               </div>
             </div>
-          )}
 
-          {/* Shortlisting Parameters */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="minScore" className="block text-sm font-medium text-github-fg-default dark:text-github-fg-default-dark mb-2">
-                Minimum Score (0-100)
-              </label>
-              <input
-                type="number"
-                id="minScore"
-                min="0"
-                max="100"
-                value={minScore}
-                onChange={(e) => setMinScore(Number(e.target.value))}
-                className="github-input"
-              />
-            </div>
-            <div>
-              <label htmlFor="limit" className="block text-sm font-medium text-github-fg-default dark:text-github-fg-default-dark mb-2">
-                Maximum Results (optional)
-              </label>
-              <input
-                type="number"
-                id="limit"
-                min="1"
-                value={limit || ''}
-                onChange={(e) => setLimit(e.target.value ? Number(e.target.value) : undefined)}
-                placeholder="No limit"
-                className="github-input"
-              />
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex space-x-4">
-            <button
-              onClick={handleShortlist}
-              disabled={
-                (inputMethod === 'text' && !jobDescription.trim()) ||
-                (inputMethod === 'file' && !file) ||
-                shortlistByText.isPending ||
-                shortlistByFile.isPending
-              }
-              className={`btn-github-primary ${
-                (inputMethod === 'text' && !jobDescription.trim()) ||
-                (inputMethod === 'file' && !file) ||
-                shortlistByText.isPending ||
-                shortlistByFile.isPending
-                  ? 'opacity-50 cursor-not-allowed'
-                  : ''
-              }`}
-            >
-              <BriefcaseIcon className="w-5 h-5 mr-2" />
-              {shortlistByText.isPending || shortlistByFile.isPending ? (
-                <span className="inline-flex items-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Analyzing...
-                </span>
+            {/* Job Description Input - Text or File */}
+            <div className="mb-6">
+              {inputMethod === 'text' ? (
+                <div className="space-y-3">                  <label htmlFor="jobDescription" className="block text-sm font-medium text-github-fg-muted dark:text-github-fg-muted-dark flex items-center">
+                    <DocumentTextIcon className="w-5 h-5 mr-2 text-github-accent-fg dark:text-github-accent-fg-dark" />
+                    Job Description Details
+                  </label>
+                  <textarea
+                    id="jobDescription"
+                    value={jobDescription}
+                    onChange={(e) => setJobDescription(e.target.value)}
+                    placeholder="Enter the job description, required skills, qualifications, and experience requirements..."
+                    className="github-input w-full h-48 text-sm"
+                  />
+                  <p className="text-xs text-github-fg-muted dark:text-github-fg-muted-dark">
+                    Provide a comprehensive job description for better candidate matching. Include key requirements, responsibilities, and qualifications.
+                  </p>
+                </div>
               ) : (
-                'Start Shortlisting'
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-github-fg-default dark:text-github-fg-default-dark flex items-center">
+                    <DocumentIcon className="w-5 h-5 mr-2 text-github-accent-fg dark:text-github-accent-fg-dark" />
+                    Job Description Document
+                  </label>
+                  <div 
+                    {...getRootProps()}
+                    className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
+                      ${isDragActive 
+                        ? 'border-github-accent-fg dark:border-github-accent-fg-dark bg-github-accent-subtle dark:bg-github-accent-subtle-dark' 
+                        : 'border-github-border-default dark:border-github-border-default-dark hover:border-github-accent-fg dark:hover:border-github-accent-fg-dark'
+                      }`}
+                  >
+                    <input {...getInputProps()} />
+                    <div className="flex flex-col items-center space-y-4">
+                      {file ? (
+                        <>
+                          <DocumentIcon className="w-12 h-12 text-github-accent-fg dark:text-github-accent-fg-dark" />
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm text-github-fg-default dark:text-github-fg-default-dark">{file.name}</span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setFile(null)
+                              }}
+                              className="p-1 hover:bg-github-canvas-subtle dark:hover:bg-github-canvas-subtle-dark rounded-full"
+                            >
+                              <XMarkIcon className="w-5 h-5 text-github-fg-muted dark:text-github-fg-muted-dark" />
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <FolderIcon className="w-12 h-12 text-github-accent-fg dark:text-github-accent-fg-dark" />
+                          <p className="text-github-fg-default dark:text-github-fg-default-dark">
+                            {isDragActive ? (
+                              "Drop your job description document here"
+                            ) : (
+                              "Drag and drop job description, or click to browse"
+                            )}
+                          </p>
+                          <p className="text-xs text-github-fg-muted dark:text-github-fg-muted-dark">
+                            Supports PDF, DOCX, and TXT files up to 10MB
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
               )}
-            </button>
-            
-            {result && (
+            </div>
+
+            {/* Shortlisting Parameters */}
+            <h4 className="text-sm font-medium text-github-fg-muted dark:text-github-fg-muted-dark mb-3 border-b border-github-border-default dark:border-github-border-default-dark pb-2">
+              Shortlisting Parameters
+            </h4>            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div>                <label htmlFor="minScore" className="block text-sm font-medium text-github-fg-muted dark:text-github-fg-muted-dark mb-2">
+                  Minimum Match Score (0-100)
+                </label>
+                <div className="flex items-center">
+                  <input
+                    type="range"
+                    id="minScore"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={minScore}
+                    onChange={(e) => setMinScore(Number(e.target.value))}
+                    className="flex-1 mr-3 h-2 bg-github-border-default dark:bg-github-border-default-dark rounded-lg appearance-none cursor-pointer"
+                  />                  <span className="w-12 py-1 px-2 text-center border border-github-border-default dark:border-github-border-default-dark rounded bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark text-sm text-github-fg-default dark:text-github-fg-default-dark">
+                    {minScore}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-github-fg-muted dark:text-github-fg-muted-dark">
+                  Only show candidates with score at or above this threshold
+                </p>
+              </div>
+              <div>
+                <label htmlFor="limit" className="block text-sm font-medium text-github-fg-default dark:text-github-fg-default-dark mb-2">
+                  Maximum Results
+                </label>
+                <input
+                  type="number"
+                  id="limit"
+                  min="1"
+                  value={limit || ''}
+                  onChange={(e) => setLimit(e.target.value ? Number(e.target.value) : undefined)}
+                  placeholder="No limit"
+                  className="github-input"
+                />
+                <p className="mt-1 text-xs text-github-fg-muted dark:text-github-fg-muted-dark">
+                  Leave empty to show all matching candidates
+                </p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap gap-3 pt-4 border-t border-github-border-default dark:border-github-border-default-dark">
               <button
-                onClick={clearAll}
-                className="btn-github"
+                onClick={handleShortlist}
+                disabled={
+                  (inputMethod === 'text' && !jobDescription.trim()) ||
+                  (inputMethod === 'file' && !file) ||
+                  shortlistByText.isPending ||
+                  shortlistByFile.isPending
+                }
+                className={`btn-github-primary ${
+                  (inputMethod === 'text' && !jobDescription.trim()) ||
+                  (inputMethod === 'file' && !file) ||
+                  shortlistByText.isPending ||
+                  shortlistByFile.isPending
+                    ? 'opacity-60 cursor-not-allowed'
+                    : ''
+                }`}
               >
-                Clear Results
+                <BriefcaseIcon className="w-5 h-5 mr-2" />
+                {shortlistByText.isPending || shortlistByFile.isPending ? (
+                  <span className="inline-flex items-center">
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-github-fg-onEmphasis dark:text-github-fg-onEmphasis" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Analyzing...
+                  </span>
+                ) : (
+                  'Start Shortlisting'
+                )}
               </button>
-            )}
+              
+              {result && (
+                <button
+                  onClick={clearAll}
+                  className="btn-github"
+                >
+                  Clear Results
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Results */}
@@ -452,16 +489,13 @@ export default function CandidateShortlisting() {
                 {/* Results Summary */}
                 <div className="github-card bg-github-accent-subtle dark:bg-github-accent-subtle-dark border-github-accent-muted dark:border-github-accent-muted-dark">
                   <h3 className="text-lg font-medium text-github-accent-fg dark:text-github-accent-fg-dark mb-4">Shortlisting Results</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                    <div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">                    <div className="bg-github-canvas-subtle dark:bg-github-canvas-default-dark rounded-lg p-4 shadow-sm">
                       <div className="text-2xl font-bold text-github-accent-fg dark:text-github-accent-fg-dark">{result.total_candidates}</div>
                       <div className="text-sm text-github-accent-fg dark:text-github-accent-fg-dark">Total Candidates</div>
-                    </div>
-                    <div>
+                    </div>                    <div className="bg-github-canvas-subtle dark:bg-github-canvas-default-dark rounded-lg p-4 shadow-sm">
                       <div className="text-2xl font-bold text-github-success-fg dark:text-github-success-fg-dark">{result.shortlisted_candidates.length}</div>
                       <div className="text-sm text-github-success-fg dark:text-github-success-fg-dark">Shortlisted</div>
-                    </div>
-                    <div>
+                    </div>                    <div className="bg-github-canvas-subtle dark:bg-github-canvas-default-dark rounded-lg p-4 shadow-sm">
                       <div className="text-2xl font-bold text-github-attention-fg dark:text-github-attention-fg-dark">{minScore}+</div>
                       <div className="text-sm text-github-attention-fg dark:text-github-attention-fg-dark">Min Score</div>
                     </div>
@@ -474,7 +508,7 @@ export default function CandidateShortlisting() {
                     <h3 className="text-lg font-medium text-github-fg-default dark:text-github-fg-default-dark mb-4">Shortlisted Candidates</h3>
                     <div className="space-y-4">
                       {result.shortlisted_candidates.map((candidate, index) => (
-                        <div key={candidate.candidate_id} className="github-card">
+                        <div key={candidate.candidate_id} className="github-card border border-github-border-default dark:border-github-border-default-dark">
                           <div className="flex items-start justify-between mb-4">
                             <div className="flex items-center space-x-3">
                               <div className="flex-shrink-0">
@@ -527,7 +561,7 @@ export default function CandidateShortlisting() {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center py-8">
+                  <div className="text-center py-8 bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark rounded-lg">
                     <ChartBarIcon className="w-12 h-12 text-github-fg-muted dark:text-github-fg-muted-dark mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-github-fg-default dark:text-github-fg-default-dark mb-2">No Candidates Match</h3>
                     <p className="text-github-fg-muted dark:text-github-fg-muted-dark">
@@ -539,16 +573,15 @@ export default function CandidateShortlisting() {
                 {/* Scoring Criteria */}
                 <div className="github-card bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark">
                   <h4 className="font-medium text-github-fg-default dark:text-github-fg-default-dark mb-2">Scoring Criteria</h4>
-                  <pre className="text-sm text-github-fg-muted dark:text-github-fg-muted-dark whitespace-pre-wrap">{result.scoring_criteria}</pre>
+                  <pre className="text-sm text-github-fg-muted dark:text-github-fg-muted-dark whitespace-pre-wrap p-3 bg-github-canvas-subtle dark:bg-github-canvas-default-dark border border-github-border-default dark:border-github-border-default-dark rounded-md">{result.scoring_criteria}</pre>
                 </div>
               </MotionDiv>
             )}
           </AnimatePresence>
-        </>
+        </div>
       ) : (
         /* Unified candidates view with toggle functionality */
-        <div className="space-y-6">
-          <div className="github-card bg-github-accent-subtle dark:bg-github-accent-subtle-dark border-github-accent-muted dark:border-github-accent-muted-dark">
+        <div className="space-y-6">          <div className="github-card bg-github-accent-subtle dark:bg-github-accent-subtle-dark border-github-accent-muted dark:border-github-accent-muted-dark">
             <div className="flex items-center space-x-3 mb-4">
               <UserGroupIcon className="w-6 h-6 text-github-accent-fg dark:text-github-accent-fg-dark" />
               <h3 className="text-lg font-medium text-github-accent-fg dark:text-github-accent-fg-dark">All Candidates</h3>
@@ -567,8 +600,7 @@ export default function CandidateShortlisting() {
               {allCandidates.map((candidate) => (
                 <div key={candidate.candidate_id} className="github-card">
                   <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center space-x-3 flex-1">
-                      <div className="flex-shrink-0">
+                    <div className="flex items-center space-x-3 flex-1">                      <div className="flex-shrink-0">
                         <div className="w-10 h-10 bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark rounded-full flex items-center justify-center text-github-fg-default dark:text-github-fg-default-dark font-medium border border-github-border-default dark:border-github-border-default-dark">
                           {candidate.full_name.charAt(0).toUpperCase()}
                         </div>
@@ -579,16 +611,15 @@ export default function CandidateShortlisting() {
                           <span>ID: {candidate.candidate_id}</span>
                           {candidate.email && <span>{candidate.email}</span>}
                           {candidate.years_experience && <span>{candidate.years_experience} years exp</span>}
-                        </div>
-                        {candidate.skills.length > 0 && (
+                        </div>                        {candidate.skills.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
                             {candidate.skills.slice(0, 5).map((skill, idx) => (
-                              <span key={idx} className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-github-neutral-subtle dark:bg-github-neutral-subtle-dark text-github-fg-muted dark:text-github-fg-muted-dark border border-github-border-default dark:border-github-border-default-dark">
+                              <span key={idx} className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-github-neutral-subtle dark:bg-github-neutral-subtle-dark text-github-fg-default dark:text-github-fg-default-dark border border-github-border-default dark:border-github-border-default-dark">
                                 {skill}
                               </span>
                             ))}
                             {candidate.skills.length > 5 && (
-                              <span className="text-xs text-github-fg-muted dark:text-github-fg-muted-dark">+{candidate.skills.length - 5} more</span>
+                              <span className="text-xs text-github-fg-default dark:text-github-fg-default-dark">+{candidate.skills.length - 5} more</span>
                             )}
                           </div>
                         )}
@@ -609,8 +640,7 @@ export default function CandidateShortlisting() {
                         {candidate.status}
                       </span>
 
-                      {/* Status Toggle Buttons */}
-                      <div className="flex space-x-1">
+                      {/* Status Toggle Buttons */}                      <div className="flex space-x-1">
                         <button
                           onClick={() => updateStatus.mutate({ 
                             candidateId: candidate.candidate_id, 
@@ -619,7 +649,7 @@ export default function CandidateShortlisting() {
                           disabled={updateStatus.isPending}
                           className={`btn-github text-xs ${
                             candidate.status === 'shortlisted'
-                              ? 'btn-github hover:bg-github-neutral-subtle dark:hover:bg-github-neutral-subtle-dark'
+                              ? 'btn-github text-github-fg-default dark:text-github-fg-default-dark hover:bg-github-neutral-subtle dark:hover:bg-github-neutral-subtle-dark'
                               : 'btn-github-primary'
                           }`}
                         >
@@ -630,13 +660,11 @@ export default function CandidateShortlisting() {
                           ) : (
                             'Shortlist'
                           )}
-                        </button>
-
-                        {/* View Resume Button */}
+                        </button>                        {/* View Resume Button */}
                         {candidate.resume_available && (
                           <button
                             onClick={() => handleViewResume(candidate.candidate_id)}
-                            className="btn-github text-xs hover:bg-github-accent-subtle dark:hover:bg-github-accent-subtle-dark hover:text-github-accent-fg dark:hover:text-github-accent-fg-dark"
+                            className="btn-github text-xs text-github-fg-default dark:text-github-fg-default-dark hover:bg-github-accent-subtle dark:hover:bg-github-accent-subtle-dark hover:text-github-accent-fg dark:hover:text-github-accent-fg-dark"
                           >
                             <EyeIcon className="w-3 h-3 mr-1" />
                             View Resume
@@ -648,17 +676,17 @@ export default function CandidateShortlisting() {
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="text-center py-8">
+          ) : (            <div className="text-center py-8">
               <UserGroupIcon className="w-12 h-12 text-github-fg-muted dark:text-github-fg-muted-dark mx-auto mb-4" />
               <h3 className="text-lg font-medium text-github-fg-default dark:text-github-fg-default-dark mb-2">No Candidates Found</h3>
-              <p className="text-github-fg-muted dark:text-github-fg-muted-dark">
+              <p className="text-github-fg-default dark:text-github-fg-default-dark">
                 Upload some resumes first to see candidates here.
               </p>
             </div>
           )}
         </div>
-      )}      {/* Resume Modal */}
+      )}      
+      {/* Resume Modal */}
       <AnimatePresence>
         {resumeModal.isOpen && (
           <motion.div
@@ -672,7 +700,7 @@ export default function CandidateShortlisting() {
               initial={{ scale: 0.95 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0.95 }}
-              className="bg-github-canvas-default dark:bg-github-canvas-default-dark rounded-lg shadow-xl max-w-4xl max-h-[90vh] w-full overflow-hidden"
+              className="bg-github-canvas-subtle dark:bg-github-canvas-default-dark rounded-lg shadow-xl max-w-4xl max-h-[90vh] w-full overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between p-4 border-b border-github-border-default dark:border-github-border-default-dark">

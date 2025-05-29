@@ -46,7 +46,7 @@ const UserProfile: React.FC = () => {
       </button>
 
       {isMenuOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+        <div className="absolute right-0 mt-2 w-48 bg-github-canvas-subtle dark:bg-github-dark-canvas-subtle rounded-md shadow-lg py-1 z-50 border border-github-border-default dark:border-github-dark-border-default">
           <div className="px-4 py-2 border-b border-gray-100">
             <p className="text-sm font-medium text-gray-900">{user.name}</p>
             <p className="text-xs text-gray-500">{user.email}</p>
