@@ -14,9 +14,55 @@ interface ResumeModalProps {
   onClose: () => void
   resumeUrl: string
   filename: string
+  fileType?: string
 }
 
-const ResumeModal = ({ isOpen, onClose, resumeUrl, filename }: ResumeModalProps) => {
+const ResumeModal = ({ isOpen, onClose, resumeUrl, filename, fileType }: ResumeModalProps) => {
+  // Function to render content based on file type
+  const renderPreviewContent = () => {
+    const type = fileType?.toLowerCase()
+    
+    if (type === 'pdf' || type === 'txt') {
+      // PDFs and text files can be displayed in iframe
+      return (
+        <div className="relative w-full" style={{ height: '80vh' }}>
+          <iframe
+            src={resumeUrl}
+            className="absolute inset-0 w-full h-full"
+            title="Resume Preview"
+          />
+        </div>
+      )
+    } else if (type === 'doc' || type === 'docx') {
+      // DOC/DOCX files need Office Online Viewer
+      const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(resumeUrl)}`
+      return (
+        <div className="relative w-full" style={{ height: '80vh' }}>
+          <iframe
+            src={viewerUrl}
+            className="absolute inset-0 w-full h-full"
+            title="Resume Preview"
+          />
+        </div>
+      )
+    } else {
+      // Fallback for other file types
+      return (
+        <div className="relative w-full flex items-center justify-center" style={{ height: '80vh' }}>
+          <div className="text-center p-8">
+            <h3 className="text-lg font-medium text-github-fg-default dark:text-github-dark-fg-default mb-4">
+              Preview not available for this file type
+            </h3>
+            <p className="text-github-fg-muted dark:text-github-dark-fg-muted mb-4">
+              File type: {type || 'Unknown'}
+            </p>            <p className="text-github-fg-muted dark:text-github-dark-fg-muted">
+              Please use the &quot;Open in New Tab&quot; button below to view the file.
+            </p>
+          </div>        </div>
+      )
+    }
+  }
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -35,7 +81,9 @@ const ResumeModal = ({ isOpen, onClose, resumeUrl, filename }: ResumeModalProps)
                 role="presentation"
                 tabIndex={-1}
               />
-            </motion.div>            {/* Modal */}
+            </motion.div>
+            
+            {/* Modal */}
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -53,13 +101,7 @@ const ResumeModal = ({ isOpen, onClose, resumeUrl, filename }: ResumeModalProps)
                 </button>
               </div>
 
-              <div className="relative w-full" style={{ height: '80vh' }}>
-                <iframe
-                  src={resumeUrl}
-                  className="absolute inset-0 w-full h-full"
-                  title="Resume Preview"
-                />
-              </div>
+              {renderPreviewContent()}
 
               <div className="p-4 border-t border-github-border-default dark:border-github-dark-border-default bg-github-canvas-subtle dark:bg-github-dark-canvas-subtle flex justify-end">
                 <a
@@ -96,10 +138,12 @@ export default function CandidateList() {
     isOpen: boolean
     url: string
     filename: string
+    fileType?: string
   }>({
     isOpen: false,
     url: '',
     filename: '',
+    fileType: undefined,
   })
 
   const queryClient = useQueryClient()
@@ -120,15 +164,15 @@ export default function CandidateList() {
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to shortlist candidate')
     }
-  })
-  // View resume
+  })  // View resume
   const handleViewResume = async (candidateId: number) => {
     try {
       const data = await resumeApi.viewResume(candidateId)
       setResumeModal({
         isOpen: true,
         url: data.resume_url,
-        filename: data.filename
+        filename: data.filename,
+        fileType: data.file_type
       })
     } catch (error) {
       console.error('Error viewing resume:', error)
@@ -395,14 +439,13 @@ export default function CandidateList() {
             )}
           </tbody>
         </table>
-      </div>
-
-      {/* Resume Preview Modal */}
+      </div>      {/* Resume Preview Modal */}
       <ResumeModal
         isOpen={resumeModal.isOpen}
         onClose={() => setResumeModal(prev => ({ ...prev, isOpen: false }))}
         resumeUrl={resumeModal.url}
         filename={resumeModal.filename}
+        fileType={resumeModal.fileType}
       />
     </div>
   )

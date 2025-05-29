@@ -38,10 +38,12 @@ export default function CandidateShortlisting() {
     isOpen: boolean
     url: string
     filename: string
+    fileType?: string
   }>({
     isOpen: false,
     url: '',
     filename: '',
+    fileType: undefined,
   })
 
   const queryClient = useQueryClient()
@@ -64,7 +66,6 @@ export default function CandidateShortlisting() {
       toast.error(error.message || 'Failed to update candidate status')
     }
   })
-
   // View resume handler
   const handleViewResume = async (candidateId: number) => {
     try {
@@ -72,7 +73,8 @@ export default function CandidateShortlisting() {
       setResumeModal({
         isOpen: true,
         url: data.resume_url,
-        filename: data.filename
+        filename: data.filename,
+        fileType: data.file_type
       })
     } catch (error) {
       console.error('Error viewing resume:', error)
@@ -151,11 +153,56 @@ export default function CandidateShortlisting() {
     if (score >= 70) return 'text-github-attention-fg dark:text-github-attention-fg-dark bg-github-attention-subtle dark:bg-github-attention-subtle-dark'
     return 'text-github-danger-fg dark:text-github-danger-fg-dark bg-github-danger-subtle dark:bg-github-danger-subtle-dark'
   }
-
   const getScoreIcon = (score: number) => {
     if (score >= 90) return <TrophyIcon className="w-5 h-5" />
     if (score >= 80) return <StarIcon className="w-5 h-5" />
     return <ChartBarIcon className="w-5 h-5" />
+  }
+
+  // Function to render content based on file type
+  const renderPreviewContent = () => {
+    const type = resumeModal.fileType?.toLowerCase()
+    
+    if (type === 'pdf' || type === 'txt') {
+      // PDFs and text files can be displayed in iframe
+      return (
+        <div className="relative w-full" style={{ height: '80vh' }}>
+          <iframe
+            src={resumeModal.url}
+            className="absolute inset-0 w-full h-full"
+            title="Resume Preview"
+          />
+        </div>
+      )
+    } else if (type === 'doc' || type === 'docx') {
+      // DOC/DOCX files need Office Online Viewer
+      const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(resumeModal.url)}`
+      return (
+        <div className="relative w-full" style={{ height: '80vh' }}>
+          <iframe
+            src={viewerUrl}
+            className="absolute inset-0 w-full h-full"
+            title="Resume Preview"
+          />
+        </div>
+      )
+    } else {
+      // Fallback for other file types
+      return (
+        <div className="relative w-full flex items-center justify-center" style={{ height: '80vh' }}>
+          <div className="text-center p-8">
+            <h3 className="text-lg font-medium text-github-fg-default dark:text-github-fg-default-dark mb-4">
+              Preview not available for this file type
+            </h3>
+            <p className="text-github-fg-muted dark:text-github-fg-muted-dark mb-4">
+              File type: {type || 'Unknown'}
+            </p>            <p className="text-github-fg-muted dark:text-github-fg-muted-dark">
+              Please use the &quot;Open in New Tab&quot; button below to view the file.
+            </p>
+          </div>
+        </div>
+      )
+    }
   }
 
   return (
@@ -564,9 +611,7 @@ export default function CandidateShortlisting() {
             </div>
           )}
         </div>
-      )}
-
-      {/* Resume Modal */}
+      )}      {/* Resume Modal */}
       <AnimatePresence>
         {resumeModal.isOpen && (
           <motion.div
@@ -574,7 +619,7 @@ export default function CandidateShortlisting() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-            onClick={() => setResumeModal({ isOpen: false, url: '', filename: '' })}
+            onClick={() => setResumeModal({ isOpen: false, url: '', filename: '', fileType: undefined })}
           >
             <motion.div
               initial={{ scale: 0.95 }}
@@ -587,19 +632,25 @@ export default function CandidateShortlisting() {
                 <h3 className="text-lg font-medium text-github-fg-default dark:text-github-fg-default-dark">
                   {resumeModal.filename}
                 </h3>
-                <button
-                  onClick={() => setResumeModal({ isOpen: false, url: '', filename: '' })}
-                  className="p-1 hover:bg-github-canvas-subtle dark:hover:bg-github-canvas-subtle-dark rounded-full"
-                >
-                  <XMarkIcon className="w-5 h-5 text-github-fg-muted dark:text-github-fg-muted-dark" />
-                </button>
+                <div className="flex items-center space-x-2">
+                  <a
+                    href={resumeModal.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-github text-sm"
+                  >
+                    Open in New Tab
+                  </a>
+                  <button
+                    onClick={() => setResumeModal({ isOpen: false, url: '', filename: '', fileType: undefined })}
+                    className="p-1 hover:bg-github-canvas-subtle dark:hover:bg-github-canvas-subtle-dark rounded-full"
+                  >
+                    <XMarkIcon className="w-5 h-5 text-github-fg-muted dark:text-github-fg-muted-dark" />
+                  </button>
+                </div>
               </div>
-              <div className="p-4 overflow-auto max-h-[calc(90vh-120px)]">
-                <iframe
-                  src={resumeModal.url}
-                  className="w-full h-[600px] border border-github-border-default dark:border-github-border-default-dark rounded"
-                  title="Resume Preview"
-                />
+              <div className="overflow-auto max-h-[calc(90vh-120px)]">
+                {renderPreviewContent()}
               </div>
             </motion.div>
           </motion.div>

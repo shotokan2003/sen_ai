@@ -873,9 +873,8 @@ async def view_resume(
         
         # Check if we need to generate a new presigned URL (if existing one is old)
         # In a production system, you might want to check if the URL is expired
-        
-        # Generate a new presigned URL with 24 hour expiration
-        success, url = generate_presigned_url(candidate.resume_file_path, expiration=3600*24)
+          # Generate a new presigned URL with 24 hour expiration for inline viewing
+        success, url = generate_presigned_url(candidate.resume_file_path, expiration=3600*24, inline=True)
         
         if not success:
             raise HTTPException(status_code=500, detail="Failed to generate URL for resume")
