@@ -1462,21 +1462,11 @@ async def get_user_chat_sessions(
     try:
         user_id = current_user.get("user_id") if current_user else None
         
-        # Get sessions from database
-        sessions = chat_service.chat_db.query(chat_service.ChatSession).filter(
-            chat_service.ChatSession.user_id == user_id
-        ).order_by(chat_service.ChatSession.last_activity.desc()).all()
-        
-        return [
-            {
-                "session_id": session.session_id,
-                "created_at": session.created_at,
-                "last_activity": session.last_activity,
-                "message_count": len(session.messages)
-            }
-            for session in sessions
-        ]
+        # Use the chat service method to get user sessions
+        sessions = chat_service.get_user_sessions(user_id)
+        return sessions
     
     except Exception as e:
         logger.error(f"Error getting user chat sessions: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to get chat sessions")
+        # Return empty list instead of raising exception for better UX
+        return []

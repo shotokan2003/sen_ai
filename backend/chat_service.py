@@ -261,32 +261,50 @@ class ChatService:
             self.chat_db.commit()
         except Exception as e:
             logger.error(f"Failed to save message to database: {str(e)}")
-    
     def get_chat_history(self, session_id: str, limit: int = 10) -> List[Dict[str, Any]]:
         """
         Get chat history for a session
         """
-        messages = (
-            self.chat_db.query(ChatMessage)
-            .filter(ChatMessage.session_id == session_id)
-            .order_by(ChatMessage.timestamp.desc())
-            .limit(limit)
-            .all()
-        )
-        return [
-            {
-                "role": msg.role,
-                "content": msg.content,
-                "timestamp": msg.timestamp,
-                "metadata": json.loads(msg.message_metadata) if msg.message_metadata else None
-            }
-            for msg in reversed(messages)
-        ]
-    
+        if not self.db_connected or not self.chat_db:
+            return []
+        
+        try:
+            messages = (
+                self.chat_db.query(ChatMessage)
+                .filter(ChatMessage.session_id == session_id)
+                .order_by(ChatMessage.timestamp.desc())
+                .limit(limit)
+                .all()
+            )
+            return [
+                {
+                    "role": msg.role,
+                    "content": msg.content,
+                    "timestamp": msg.timestamp.isoformat() if msg.timestamp else None,
+                    "metadata": json.loads(msg.message_metadata) if msg.message_metadata else None
+                }
+                for msg in reversed(messages)
+            ]
+        except Exception as e:
+            logger.error(f"Error getting chat history: {str(e)}")
+            return []
     def prepare_rag_context(self, user_message: str, user_id: Optional[int] = None) -> str:
         """
         Prepare RAG context based on user message and candidate data
         """
+        # Check if RAG service is available
+        if not self.rag_service:
+            return """=== CANDIDATE DATABASE ===
+No candidates found in your database.
+
+It looks like you haven't uploaded any resumes yet. To get started:
+1. Use the file uploader to upload resume files (PDF, DOCX, or TXT)
+2. The system will extract and parse candidate information
+3. Once uploaded, you can ask me questions about your candidates
+
+I'll be ready to help you find the perfect candidates once you have some resumes in your database!
+"""
+        
         # Get user-specific candidates data
         candidates_data = self.rag_service.get_all_candidates_data(user_id)
         
@@ -456,6 +474,35 @@ Remember: You can only recommend candidates from the provided database."""
         except Exception as e:
             logger.error(f"Error getting session info: {str(e)}")
             return None
+        
+    def get_user_sessions(self, user_id: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Get all chat sessions for a user
+        """
+        if not self.db_connected or not self.chat_db:
+            return []
+        
+        try:
+            sessions = (
+                self.chat_db.query(ChatSession)
+                .filter(ChatSession.user_id == user_id)
+                .order_by(ChatSession.last_activity.desc())
+                .all()
+            )
+            
+            return [
+                {
+                    "session_id": session.session_id,
+                    "created_at": session.created_at.isoformat() if session.created_at else None,
+                    "last_activity": session.last_activity.isoformat() if session.last_activity else None,
+                    "message_count": len(session.messages) if session.messages else 0
+                }
+                for session in sessions
+            ]
+        
+        except Exception as e:
+            logger.error(f"Error getting user sessions: {str(e)}")
+            return []
 
 # Global chat service instance
 chat_service = ChatService()
