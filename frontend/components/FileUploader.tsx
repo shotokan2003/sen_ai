@@ -232,15 +232,14 @@ export default function FileUploader() {
     // Proceed with upload
     uploadBatch.mutate()
   }
-
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'success':
-        return <CheckCircleIcon className="w-5 h-5 text-github-success-fg dark:text-github-success-fg-dark" />
+        return <CheckCircleIcon className="w-5 h-5 text-github-success-fg dark:text-github-dark-success-fg" />
       case 'error':
-        return <ExclamationCircleIcon className="w-5 h-5 text-github-danger-fg dark:text-github-danger-fg-dark" />
+        return <ExclamationCircleIcon className="w-5 h-5 text-github-danger-fg dark:text-github-dark-danger-fg" />
       case 'duplicate':
-        return <ArrowPathIcon className="w-5 h-5 text-github-attention-fg dark:text-github-attention-fg-dark" />
+        return <ArrowPathIcon className="w-5 h-5 text-github-attention-fg dark:text-github-dark-attention-fg" />
       default:
         return null
     }
@@ -249,65 +248,63 @@ export default function FileUploader() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'success':
-        return 'text-github-success-fg dark:text-github-success-fg-dark bg-github-success-subtle dark:bg-github-success-subtle-dark'
+        return 'text-github-success-fg dark:text-github-dark-success-fg bg-github-success-subtle dark:bg-github-dark-success-subtle'
       case 'error':
-        return 'text-github-danger-fg dark:text-github-danger-fg-dark bg-github-danger-subtle dark:bg-github-danger-subtle-dark'
+        return 'text-github-danger-fg dark:text-github-dark-danger-fg bg-github-danger-subtle dark:bg-github-dark-danger-subtle'
       case 'duplicate':
-        return 'text-github-attention-fg dark:text-github-attention-fg-dark bg-github-attention-subtle dark:bg-github-attention-subtle-dark'
+        return 'text-github-attention-fg dark:text-github-dark-attention-fg bg-github-attention-subtle dark:bg-github-dark-attention-subtle'
       default:
-        return 'text-github-fg-muted dark:text-github-fg-muted-dark bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark'
+        return 'text-github-fg-muted dark:text-github-dark-fg-muted bg-github-canvas-subtle dark:bg-github-dark-canvas-subtle'
     }
   }
 
   const isUploading = uploadBatch.isPending
   
   return (
-    <div className="space-y-6">
-      {/* File Drop Zone with clearer messaging */}
+    <div className="space-y-6">      {/* File Drop Zone with clearer messaging */}
       <div 
         {...getRootProps()}
         className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
           ${isDragActive 
-            ? 'border-github-accent-fg dark:border-github-accent-fg-dark bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark' 
-            : 'border-github-border-default dark:border-github-border-default-dark hover:border-github-accent-fg dark:hover:border-github-accent-fg-dark'
-          } bg-github-canvas-subtle dark:bg-github-canvas-default-dark`}
+            ? 'border-github-accent-emphasis dark:border-github-dark-accent-emphasis bg-github-accent-subtle dark:bg-github-dark-accent-subtle' 
+            : 'border-github-border-default dark:border-github-dark-border-default hover:border-github-accent-emphasis dark:hover:border-github-dark-accent-emphasis bg-github-canvas-subtle dark:bg-github-dark-canvas-subtle'
+          }`}
       >
         <input {...getInputProps()} />        
         <div className="flex flex-col items-center space-y-4">
-          <FolderIcon className="w-12 h-12 text-github-fg-muted dark:text-github-fg-muted-dark" />
-          <p className="text-github-fg-default dark:text-github-fg-default-dark">
+          <FolderIcon className="w-12 h-12 text-github-fg-muted dark:text-github-dark-fg-muted" />
+          <p className="text-github-fg-default dark:text-github-dark-fg-default">
             {isDragActive ? (
               "Drop your resume files here"
             ) : (
               "Drag and drop resume files, or click to browse"
             )}
           </p>
-          <p className="text-sm text-github-fg-muted dark:text-github-fg-muted-dark">
+          <p className="text-sm text-github-fg-muted dark:text-github-dark-fg-muted">
             Supports PDF, DOCX, and TXT files up to 10MB each
             (Maximum 50 files per batch)
           </p>
-          <p className="text-xs text-github-fg-muted dark:text-github-fg-muted-dark">
+          <p className="text-xs text-github-fg-muted dark:text-github-dark-fg-muted">
             Files must contain actual resume content to be processed
           </p>
-          <p className="text-xs text-github-danger-fg dark:text-github-danger-fg-dark">
+          <p className="text-xs text-github-danger-fg dark:text-github-dark-danger-fg">
             Warning: AI-based validation will check for contact info, education & skills
           </p>
-          <p className="text-xs text-github-danger-fg dark:text-github-danger-fg-dark">
+          <p className="text-xs text-github-danger-fg dark:text-github-dark-danger-fg">
             Empty, blank, or non-resume files will be rejected
           </p>
         </div>
       </div>
 
       {/* Selected Files */}
-      {files.length > 0 && (
-        <div className="github-card">
+      {files.length > 0 && (        <div className="github-card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-github-fg-default dark:text-github-fg-default-dark">
+            <h3 className="text-lg font-medium text-github-fg-default dark:text-github-dark-fg-default">
               Selected Files ({files.length})
             </h3>
             <button
               onClick={clearAll}
-              className="text-sm text-github-danger-fg dark:text-github-danger-fg-dark hover:underline"
+              className="text-sm text-github-danger-fg dark:text-github-dark-danger-fg hover:underline"
             >
               Clear All
             </button>
@@ -315,45 +312,44 @@ export default function FileUploader() {
           
           <div className="space-y-2 max-h-40 overflow-y-auto">
             {files.map((file) => (
-              <div key={file.id} className="flex items-center justify-between p-2 bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark rounded">
+              <div key={file.id} className="flex items-center justify-between p-2 bg-github-canvas-subtle dark:bg-github-dark-canvas-subtle rounded">
                 <div className="flex items-center space-x-2">
-                  <DocumentIcon className="w-4 h-4 text-github-accent-fg dark:text-github-accent-fg-dark" />
-                  <span className="text-sm text-github-fg-default dark:text-github-fg-default-dark">{file.name}</span>
-                  <span className="text-xs text-github-fg-muted dark:text-github-fg-muted-dark">
+                  <DocumentIcon className="w-4 h-4 text-github-accent-fg dark:text-github-dark-accent-fg" />
+                  <span className="text-sm text-github-fg-default dark:text-github-dark-fg-default">{file.name}</span>
+                  <span className="text-xs text-github-fg-muted dark:text-github-dark-fg-muted">
                     ({(file.size / 1024 / 1024).toFixed(2)} MB)
                   </span>
                 </div>
                 <button
                   onClick={() => removeFile(file.id)}
-                  className="p-1 hover:bg-github-canvas-default dark:hover:bg-github-canvas-default-dark rounded-full"
+                  className="p-1 hover:bg-github-canvas-default dark:hover:bg-github-dark-canvas-default rounded-full"
                 >
-                  <XMarkIcon className="w-4 h-4 text-github-fg-muted dark:text-github-fg-muted-dark" />
+                  <XMarkIcon className="w-4 h-4 text-github-fg-muted dark:text-github-dark-fg-muted" />
                 </button>
               </div>
             ))}
           </div>
         </div>
       )}
-      
-      {/* Options */}
+        {/* Options */}
       <div className="flex items-center space-x-6">
         <label className="flex items-center space-x-2">
           <input
             type="checkbox"
             checked={saveToDb}
             onChange={(e) => setSaveToDb(e.target.checked)}
-            className="accent-github-accent-fg dark:accent-github-accent-fg-dark cursor-pointer"
+            className="accent-github-accent-emphasis dark:accent-github-dark-accent-emphasis cursor-pointer"
           />
-          <span className="text-sm text-github-fg-muted dark:text-github-fg-muted-dark">Save to database</span>
+          <span className="text-sm text-github-fg-muted dark:text-github-dark-fg-muted">Save to database</span>
         </label>
         
         {saveToDb && (
           <div className="flex items-center space-x-2">
-            <span className="text-sm text-github-fg-muted dark:text-github-fg-muted-dark">Duplicate handling:</span>
+            <span className="text-sm text-github-fg-muted dark:text-github-dark-fg-muted">Duplicate handling:</span>
             <select 
               value={duplicateHandling}
               onChange={(e) => setDuplicateHandling(e.target.value as DuplicateHandling)}
-              className="github-input text-sm bg-github-canvas-subtle dark:bg-github-canvas-default-dark border border-github-border-default dark:border-github-border-default-dark rounded px-2 py-1 text-github-fg-muted dark:text-github-fg-muted-dark"
+              className="github-input text-sm bg-github-canvas-subtle dark:bg-github-dark-canvas-subtle border border-github-border-default dark:border-github-dark-border-default rounded px-2 py-1 text-github-fg-muted dark:text-github-dark-fg-muted"
             >
               <option value="strict">Strict (No duplicates)</option>
               <option value="allow_updates">Allow updates (Same person)</option>
@@ -404,48 +400,47 @@ export default function FileUploader() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             className="space-y-4"
-          >
-            {/* Summary */}
-            <div className="github-card bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark">
-              <h3 className="text-lg font-medium text-github-fg-default dark:text-github-fg-default-dark mb-4">Processing Results</h3>
+          >            {/* Summary */}
+            <div className="github-card bg-github-canvas-subtle dark:bg-github-dark-canvas-subtle">
+              <h3 className="text-lg font-medium text-github-fg-default dark:text-github-dark-fg-default mb-4">Processing Results</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                 <div>
-                  <div className="text-2xl font-bold text-github-fg-default dark:text-github-fg-default-dark">{batchResult.total_files}</div>
-                  <div className="text-sm text-github-fg-muted dark:text-github-fg-muted-dark">Total</div>
+                  <div className="text-2xl font-bold text-github-fg-default dark:text-github-dark-fg-default">{batchResult.total_files}</div>
+                  <div className="text-sm text-github-fg-muted dark:text-github-dark-fg-muted">Total</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-github-success-fg dark:text-github-success-fg-dark">{batchResult.successful}</div>
-                  <div className="text-sm text-github-success-fg dark:text-github-success-fg-dark">Successful</div>
+                  <div className="text-2xl font-bold text-github-success-fg dark:text-github-dark-success-fg">{batchResult.successful}</div>
+                  <div className="text-sm text-github-success-fg dark:text-github-dark-success-fg">Successful</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-github-danger-fg dark:text-github-danger-fg-dark">{batchResult.failed}</div>
-                  <div className="text-sm text-github-danger-fg dark:text-github-danger-fg-dark">Failed</div>
+                  <div className="text-2xl font-bold text-github-danger-fg dark:text-github-dark-danger-fg">{batchResult.failed}</div>
+                  <div className="text-sm text-github-danger-fg dark:text-github-dark-danger-fg">Failed</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-github-attention-fg dark:text-github-attention-fg-dark">{batchResult.duplicates}</div>
-                  <div className="text-sm text-github-attention-fg dark:text-github-attention-fg-dark">Duplicates</div>
+                  <div className="text-2xl font-bold text-github-attention-fg dark:text-github-dark-attention-fg">{batchResult.duplicates}</div>
+                  <div className="text-sm text-github-attention-fg dark:text-github-dark-attention-fg">Duplicates</div>
                 </div>
               </div>
             </div>
 
             {/* Detailed Results */}
             <div className="github-card">
-              <h3 className="text-lg font-medium text-github-fg-default dark:text-github-fg-default-dark mb-4">File Details</h3>
+              <h3 className="text-lg font-medium text-github-fg-default dark:text-github-dark-fg-default mb-4">File Details</h3>
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {batchResult.results.map((result, index) => (
-                  <div key={index} className="flex items-start justify-between p-3 bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark rounded">
+                  <div key={index} className="flex items-start justify-between p-3 bg-github-canvas-subtle dark:bg-github-dark-canvas-subtle rounded">
                     <div className="flex items-start space-x-3">
                       {getStatusIcon(result.status)}
                       <div>
-                        <div className="font-medium text-github-fg-default dark:text-github-fg-default-dark">{result.filename}</div>
-                        <div className="text-sm text-github-fg-muted dark:text-github-fg-muted-dark">{result.message}</div>
+                        <div className="font-medium text-github-fg-default dark:text-github-dark-fg-default">{result.filename}</div>
+                        <div className="text-sm text-github-fg-muted dark:text-github-dark-fg-muted">{result.message}</div>
                         {result.candidate_id && (
-                          <div className="text-sm text-github-success-fg dark:text-github-success-fg-dark">
+                          <div className="text-sm text-github-success-fg dark:text-github-dark-success-fg">
                             Candidate ID: {result.candidate_id}
                           </div>
                         )}
                         {result.existing_candidate_id && (
-                          <div className="text-sm text-github-attention-fg dark:text-github-attention-fg-dark">
+                          <div className="text-sm text-github-attention-fg dark:text-github-dark-attention-fg">
                             Existing Candidate ID: {result.existing_candidate_id}
                           </div>
                         )}

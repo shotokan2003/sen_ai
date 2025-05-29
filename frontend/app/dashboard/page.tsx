@@ -8,11 +8,11 @@ import ChatBot from '@/components/ChatBot';
 const DashboardPage: React.FC = () => {
   return (
     <ProtectedRoute>      <div className="space-y-6">
-        <div className="bg-github-canvas-subtle rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+        <div className="bg-github-canvas-subtle dark:bg-github-dark-canvas-subtle rounded-lg shadow-sm border border-github-border-default dark:border-github-dark-border-default p-6">
+          <h2 className="text-xl font-semibold text-github-fg-default dark:text-github-dark-fg-default mb-4">
             Candidate Management Dashboard
           </h2>
-          <p className="text-gray-600 mb-6">
+          <p className="text-github-fg-muted dark:text-github-dark-fg-muted mb-6">
             Upload resumes, manage candidates, and shortlist applicants for your job openings.
           </p>
         </div>
