@@ -48,6 +48,9 @@ from s3_storage import upload_file_to_s3, generate_presigned_url
 # Import shortlisting service
 from shortlisting_service import shortlist_candidates, CandidateScore, ShortlistingResult
 
+# Import chat service
+from chat_service import chat_service, ChatRequest, ChatResponse, ChatHistory
+
 # Import authentication middleware
 from auth_middleware import get_current_user, get_current_user_optional
 
@@ -1375,3 +1378,105 @@ Analyze carefully and be somewhat strict - if the document is clearly not a resu
             "reasoning": "Automated validation encountered an error, proceeding with basic validation.",
             "missing_elements": []
         }
+
+# Chat Endpoints
+@app.post("/chat/start", response_model=Dict[str, str])
+async def start_chat_session(
+    current_user: Dict[str, Any] = Depends(get_current_user_optional)
+):
+    """
+    Start a new chat session
+    """
+    try:
+        user_id = current_user.get("user_id") if current_user else None
+        session_id = chat_service.create_session(user_id)
+        
+        return {
+            "session_id": session_id,
+            "message": "Chat session started successfully"
+        }
+    
+    except Exception as e:
+        logger.error(f"Error starting chat session: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to start chat session")
+
+@app.post("/chat/message", response_model=ChatResponse)
+async def send_chat_message(
+    chat_request: ChatRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user_optional)
+):
+    """
+    Send a message to the chatbot and get a response
+    """
+    try:
+        user_id = current_user.get("user_id") if current_user else None
+        
+        # If no session_id provided, create a new session
+        if not chat_request.session_id:
+            session_id = chat_service.create_session(user_id)
+        else:
+            session_id = chat_request.session_id
+        
+        # Generate response using RAG
+        response = chat_service.generate_response(
+            user_message=chat_request.message,
+            session_id=session_id,
+            user_id=user_id
+        )
+        
+        return response
+    
+    except Exception as e:
+        logger.error(f"Error processing chat message: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to process chat message")
+
+@app.get("/chat/history/{session_id}", response_model=ChatHistory)
+async def get_chat_history(
+    session_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user_optional)
+):
+    """
+    Get chat history for a session
+    """
+    try:
+        history = chat_service.get_session_info(session_id)
+        
+        if not history:
+            raise HTTPException(status_code=404, detail="Chat session not found")
+        
+        return history
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting chat history: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get chat history")
+
+@app.get("/chat/sessions", response_model=List[Dict[str, Any]])
+async def get_user_chat_sessions(
+    current_user: Dict[str, Any] = Depends(get_current_user_optional)
+):
+    """
+    Get all chat sessions for the current user
+    """
+    try:
+        user_id = current_user.get("user_id") if current_user else None
+        
+        # Get sessions from database
+        sessions = chat_service.chat_db.query(chat_service.ChatSession).filter(
+            chat_service.ChatSession.user_id == user_id
+        ).order_by(chat_service.ChatSession.last_activity.desc()).all()
+        
+        return [
+            {
+                "session_id": session.session_id,
+                "created_at": session.created_at,
+                "last_activity": session.last_activity,
+                "message_count": len(session.messages)
+            }
+            for session in sessions
+        ]
+    
+    except Exception as e:
+        logger.error(f"Error getting user chat sessions: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get chat sessions")

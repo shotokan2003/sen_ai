@@ -106,6 +106,7 @@ export interface ShortlistingResult {
   job_description: string;
   total_candidates: number;
   shortlisted_candidates: CandidateScore[];
+  all_candidates: CandidateScore[];
   scoring_criteria: string;
 }
 
@@ -145,6 +146,44 @@ export interface ResumeValidationResult {
   is_resume: boolean;
   reasoning: string;
   missing_elements: string[];
+}
+
+// Chat interfaces
+export interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: string;
+  metadata?: {
+    sources?: Array<{ type: string; count?: number }>;
+    candidates_mentioned?: number[];
+  };
+}
+
+export interface ChatRequest {
+  message: string;
+  session_id?: string;
+  user_id?: number;
+}
+
+export interface ChatResponse {
+  response: string;
+  session_id: string;
+  sources: Array<{ type: string; count?: number }>;
+  candidates_mentioned: number[];
+}
+
+export interface ChatHistory {
+  session_id: string;
+  messages: ChatMessage[];
+  created_at: string;
+  last_activity: string;
+}
+
+export interface ChatSession {
+  session_id: string;
+  created_at: string;
+  last_activity: string;
+  message_count: number;
 }
 
 export const resumeApi = {
@@ -300,6 +339,33 @@ export const authApiClient = {
   // Health check for auth service
   healthCheck: async (): Promise<{ status: string; authenticated: boolean }> => {
     const response = await authApi.get('/health');
+    return response.data;
+  }
+};
+
+// Chat API
+export const chatApi = {
+  // Start a new chat session
+  startSession: async (): Promise<{ session_id: string; message: string }> => {
+    const response = await api.post('/chat/start');
+    return response.data;
+  },
+
+  // Send a message to the chatbot
+  sendMessage: async (chatRequest: ChatRequest): Promise<ChatResponse> => {
+    const response = await api.post('/chat/message', chatRequest);
+    return response.data;
+  },
+
+  // Get chat history for a session
+  getHistory: async (sessionId: string): Promise<ChatHistory> => {
+    const response = await api.get(`/chat/history/${sessionId}`);
+    return response.data;
+  },
+
+  // Get all chat sessions for the user
+  getSessions: async (): Promise<ChatSession[]> => {
+    const response = await api.get('/chat/sessions');
     return response.data;
   }
 };

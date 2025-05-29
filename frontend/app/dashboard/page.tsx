@@ -3,6 +3,7 @@
 import React from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import ResumeProcessor from '@/components/ResumeProcessor';
+import ChatBot from '@/components/ChatBot';
 
 const DashboardPage: React.FC = () => {
   return (
@@ -17,6 +18,9 @@ const DashboardPage: React.FC = () => {
         </div>
         
         <ResumeProcessor />
+        
+        {/* AI Chat Assistant */}
+        <ChatBot />
       </div>
     </ProtectedRoute>
   );
