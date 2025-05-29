@@ -840,10 +840,11 @@ async def parse_text(text: str = Form(...)):
 def read_root():
     return {"message": "Resume Processing API is running! Use /upload-resume/ endpoint to process resumes."}
 
-@app.get("/candidates/", response_model=List[Dict[str, Any]])
+@app.get("/candidates/", response_model=Dict[str, Any])
 async def get_candidates(
     request: Request,
-    limit: int = Query(100, description="Maximum number of candidates to return"),
+    page: int = Query(1, ge=1, description="Page number (1-based)"),
+    limit: int = Query(5, ge=1, le=1000, description="Number of candidates per page"),
     status: Optional[str] = Query(None, description="Filter by status (pending, shortlisted, rejected)"),
     min_experience: Optional[int] = Query(None, description="Minimum years of experience"),
     max_experience: Optional[int] = Query(None, description="Maximum years of experience"),
@@ -868,9 +869,9 @@ async def get_candidates(
         skills_list = None
         if skills:
             skills_list = [skill.strip() for skill in skills.split(',') if skill.strip()]
-        
-        # Get candidates with comprehensive filtering
-        candidates = get_all_candidates(
+          # Get candidates with comprehensive filtering and pagination
+        candidates_data = get_all_candidates(
+            page=page,
             limit=limit, 
             status=status_enum, 
             user_id=current_user['id'],
@@ -882,6 +883,9 @@ async def get_candidates(
             position=position,
             education=education
         )
+        
+        candidates = candidates_data['candidates']
+        pagination = candidates_data['pagination']
         
         # Convert SQLAlchemy objects to dictionaries with comprehensive data
         result = []
@@ -925,11 +929,13 @@ async def get_candidates(
                 "original_filename": candidate.original_filename,
                 "skills": skills,
                 "education": education_data,
-                "work_experience": work_experience
-            }
+                "work_experience": work_experience            }
             result.append(candidate_dict)
         
-        return result
+        return {
+            "candidates": result,
+            "pagination": pagination
+        }
         
     except Exception as e:
         logger.error(f"Error getting candidates: {str(e)}")

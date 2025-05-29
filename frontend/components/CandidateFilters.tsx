@@ -251,24 +251,22 @@ export default function CandidateFiltersComponent({ onFiltersChangeAction }: Can
                 className="w-full px-3 py-2 border border-github-border-default dark:border-github-dark-border-default rounded-md bg-github-canvas-default dark:bg-github-dark-canvas-default text-github-fg-default dark:text-github-dark-fg-default focus:ring-2 focus:ring-github-accent-fg focus:border-transparent"
                 placeholder="e.g., Computer Science, MIT, Bachelor's"
               />
-            </div>
-          </div>
+            </div>          </div>
 
-          {/* Results Limit */}
+          {/* Page Size */}
           <div className="w-full md:w-1/3">
             <label className="block text-sm font-medium text-github-fg-default dark:text-github-dark-fg-default mb-2">
-              Results Limit
+              Items per page
             </label>
             <select
-              value={filters.limit || 100}
+              value={filters.limit || 5}
               onChange={(e) => handleFilterChange('limit', parseInt(e.target.value))}
               className="w-full px-3 py-2 border border-github-border-default dark:border-github-dark-border-default rounded-md bg-github-canvas-default dark:bg-github-dark-canvas-default text-github-fg-default dark:text-github-dark-fg-default focus:ring-2 focus:ring-github-accent-fg focus:border-transparent"
             >
-              <option value="25">25 candidates</option>
-              <option value="50">50 candidates</option>
-              <option value="100">100 candidates</option>
-              <option value="200">200 candidates</option>
-              <option value="500">500 candidates</option>
+              <option value="5">5 per page</option>
+              <option value="10">10 per page</option>
+              <option value="25">25 per page</option>
+              <option value="50">50 per page</option>
             </select>
           </div>
         </div>

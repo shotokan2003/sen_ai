@@ -129,8 +129,24 @@ export interface AuthError {
   message: string;
 }
 
+// Pagination interfaces
+export interface PaginationInfo {
+  page: number;
+  limit: number;
+  total_count: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
+export interface CandidatesResponse {
+  candidates: Candidate[];
+  pagination: PaginationInfo;
+}
+
 // Filter interface for candidate search
 export interface CandidateFilters {
+  page?: number;
   limit?: number;
   status?: string;
   minExperience?: number;
@@ -224,12 +240,14 @@ export const resumeApi = {
     const response = await api.post<{ parsed_data: string }>('/parse-text/', formData);
     return response.data;
   },
-
-  getCandidates: async (filters: CandidateFilters = {}): Promise<Candidate[]> => {
+  getCandidates: async (filters: CandidateFilters = {}): Promise<CandidatesResponse> => {
     const params = new URLSearchParams();
     
-    // Add basic filters
+    // Add pagination params
+    if (filters.page) params.append('page', String(filters.page));
     if (filters.limit) params.append('limit', String(filters.limit));
+    
+    // Add basic filters
     if (filters.status) params.append('status', filters.status);
     
     // Add experience filters
@@ -247,7 +265,7 @@ export const resumeApi = {
       params.append('skills', filters.skills.join(','));
     }
     
-    const response = await api.get<Candidate[]>('/candidates/?' + params.toString());
+    const response = await api.get<CandidatesResponse>('/candidates/?' + params.toString());
     return response.data;
   },
 

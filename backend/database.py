@@ -4,7 +4,7 @@ import hashlib
 import uuid
 import os
 from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Float, Enum, ForeignKey, DateTime, Text, Boolean
+from sqlalchemy import create_engine, Column, Integer, String, Float, Enum, ForeignKey, DateTime, Text, Boolean, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from dotenv import load_dotenv
@@ -161,7 +161,7 @@ def save_candidate_data(parsed_data, resume_file_path=None, resume_s3_url=None, 
         user_id=user_id
     )
 
-def get_all_candidates(limit=100, status=None, user_id=None, min_experience=None, max_experience=None, 
+def get_all_candidates(page=1, limit=5, status=None, user_id=None, min_experience=None, max_experience=None, 
                       skills=None, location=None, company=None, position=None, education=None):
     """
     Get all candidates with comprehensive filtering options
@@ -231,9 +231,62 @@ def get_all_candidates(limit=100, status=None, user_id=None, min_experience=None
                     Education.degree.ilike(f"%{education}%"),
                     Education.institution.ilike(f"%{education}%")
                 )
+            ).distinct()        # Calculate pagination
+        offset = (page - 1) * limit
+        
+        # Get total count for pagination info - create a separate count query
+        count_query = db.query(func.count(Candidate.candidate_id))
+        
+        # Apply the same filters to count query
+        if status:
+            count_query = count_query.filter(Candidate.status == status)
+            
+        if user_id:
+            count_query = count_query.filter(Candidate.user_id == user_id)
+            
+        # Experience filters
+        if min_experience is not None:
+            count_query = count_query.filter(Candidate.years_experience >= min_experience)
+            
+        if max_experience is not None:
+            count_query = count_query.filter(Candidate.years_experience <= max_experience)
+            
+        # Location filter
+        if location:
+            count_query = count_query.filter(Candidate.location.ilike(f"%{location}%"))
+        
+        # Skills filter
+        if skills and len(skills) > 0:
+            count_query = count_query.join(Skill).filter(
+                or_(*[Skill.skill_name.ilike(f"%{skill.strip()}%") for skill in skills])
             ).distinct()
         
-        candidates = query.limit(limit).all()
+        # Work experience filters
+        if company or position:
+            count_query = count_query.join(WorkExperience)
+            
+            if company:
+                count_query = count_query.filter(WorkExperience.company.ilike(f"%{company}%"))
+                
+            if position:
+                count_query = count_query.filter(WorkExperience.position.ilike(f"%{position}%"))
+                
+            count_query = count_query.distinct()
+        
+        # Education filter
+        if education:
+            count_query = count_query.join(Education).filter(
+                or_(
+                    Education.degree.ilike(f"%{education}%"),
+                    Education.institution.ilike(f"%{education}%")
+                )
+            ).distinct()
+        
+        # Get the total count
+        total_count = count_query.scalar()
+        
+        # Apply pagination to main query
+        candidates = query.offset(offset).limit(limit).all()
         
         # Load relationships explicitly to avoid lazy loading issues
         for candidate in candidates:
@@ -241,7 +294,22 @@ def get_all_candidates(limit=100, status=None, user_id=None, min_experience=None
             _ = candidate.education
             _ = candidate.work_experiences
             
-        return candidates
+        # Calculate pagination metadata
+        total_pages = (total_count + limit - 1) // limit  # Ceiling division
+        has_next = page < total_pages
+        has_prev = page > 1
+        
+        return {
+            'candidates': candidates,
+            'pagination': {
+                'page': page,
+                'limit': limit,
+                'total_count': total_count,
+                'total_pages': total_pages,
+                'has_next': has_next,
+                'has_prev': has_prev
+            }
+        }
     except Exception as e:
         logger.error(f"Error fetching candidates: {str(e)}")
         raise  # Re-raise the exception to see what's going wrong

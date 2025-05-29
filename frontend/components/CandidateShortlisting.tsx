@@ -49,13 +49,14 @@ export default function CandidateShortlisting() {
     fileType: undefined,
   })
 
-  const queryClient = useQueryClient()
-  // Fetch all candidates for unified view
-  const { data: allCandidates, isLoading: candidatesLoading } = useQuery({
+  const queryClient = useQueryClient()  // Fetch all candidates for unified view
+  const { data: candidatesResponse, isLoading: candidatesLoading } = useQuery({
     queryKey: ['candidates'],
-    queryFn: () => resumeApi.getCandidates({ limit: 1000 }),
+    queryFn: () => resumeApi.getCandidates({ page: 1, limit: 1000 }),
     enabled: showAllCandidates
   })
+
+  const allCandidates = candidatesResponse?.candidates || []
 
   // Status update mutation
   const updateStatus = useMutation({

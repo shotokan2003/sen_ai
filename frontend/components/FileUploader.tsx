@@ -287,9 +287,9 @@ export default function FileUploader() {
           <p className="text-xs text-github-fg-muted dark:text-github-dark-fg-muted">
             Files must contain actual resume content to be processed
           </p>
-          <p className="text-xs text-github-danger-fg dark:text-github-dark-danger-fg">
+            <p className="text-xs text-github-attention-fg dark:text-github-dark-attention-fg">
             Warning: AI-based validation will check for contact info, education & skills
-          </p>
+            </p>
           <p className="text-xs text-github-danger-fg dark:text-github-dark-danger-fg">
             Empty, blank, or non-resume files will be rejected
           </p>

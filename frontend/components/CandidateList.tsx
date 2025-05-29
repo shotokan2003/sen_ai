@@ -9,6 +9,7 @@ import { resumeApi, type Candidate, type CandidateFilters } from '@/src/lib/api'
 import { EyeIcon, ChevronUpIcon, ChevronDownIcon, BuildingOfficeIcon, AcademicCapIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import CandidateFiltersComponent from './CandidateFilters'
 import DocumentViewer from './DocumentViewer'
+import Pagination from './Pagination'
 
 interface ResumeModalProps {
   isOpen: boolean
@@ -84,7 +85,8 @@ const ResumeModal = ({ isOpen, onClose, resumeUrl, filename, fileType }: ResumeM
 
 export default function CandidateList() {
   const [filters, setFilters] = useState<CandidateFilters>({
-    limit: 100,
+    page: 1,
+    limit: 5,
     status: '',
     minExperience: undefined,
     maxExperience: undefined,
@@ -109,11 +111,20 @@ export default function CandidateList() {
 
   const queryClient = useQueryClient()
 
-  // Fetch candidates with filters
-  const { data: candidates, isLoading, error } = useQuery({
+  // Fetch candidates with filters and pagination
+  const { data: candidatesResponse, isLoading, error } = useQuery({
     queryKey: ['candidates', filters],
     queryFn: () => resumeApi.getCandidates(filters)
   })
+
+  const candidates = candidatesResponse?.candidates || []
+  const pagination = candidatesResponse?.pagination
+
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setFilters(prev => ({ ...prev, page }))
+    setExpandedRows(new Set()) // Clear expanded rows when changing page
+  }
 
   // Shortlist mutation
   const shortlist = useMutation({
@@ -398,9 +409,19 @@ export default function CandidateList() {
                 </td>
               </tr>
             )}
-          </tbody>
-        </table>
-      </div>      {/* Resume Preview Modal */}
+          </tbody>        </table>
+      </div>
+
+      {/* Pagination */}
+      {pagination && pagination.total_pages > 1 && (
+        <Pagination
+          pagination={pagination}
+          onPageChange={handlePageChange}
+          className="rounded-b-lg"
+        />
+      )}
+
+      {/* Resume Preview Modal */}
       <ResumeModal
         isOpen={resumeModal.isOpen}
         onClose={() => setResumeModal(prev => ({ ...prev, isOpen: false }))}
