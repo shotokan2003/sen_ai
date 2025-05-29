@@ -12,4 +12,5 @@ fastapi
 uvicorn
 python-multipart
 boto3
+httpx
 # Add other database-specific drivers if aevan is not SQLite, e.g., psycopg2-binary for PostgreSQL
