@@ -45,11 +45,10 @@ export default function CandidateShortlisting() {
   })
 
   const queryClient = useQueryClient()
-
   // Fetch all candidates for unified view
   const { data: allCandidates, isLoading: candidatesLoading } = useQuery({
     queryKey: ['candidates'],
-    queryFn: () => resumeApi.getCandidates(1000),
+    queryFn: () => resumeApi.getCandidates({ limit: 1000 }),
     enabled: showAllCandidates
   })
 

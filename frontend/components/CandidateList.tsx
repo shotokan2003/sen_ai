@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'framer-motion'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { resumeApi, type Candidate } from '@/src/lib/api'
-import { EyeIcon, ChevronUpIcon } from '@heroicons/react/24/outline'
+import { resumeApi, type Candidate, type CandidateFilters } from '@/src/lib/api'
+import { EyeIcon, ChevronUpIcon, ChevronDownIcon, BuildingOfficeIcon, AcademicCapIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import CandidateFiltersComponent from './CandidateFilters'
 
 interface ResumeModalProps {
   isOpen: boolean
@@ -79,7 +80,18 @@ const ResumeModal = ({ isOpen, onClose, resumeUrl, filename }: ResumeModalProps)
 }
 
 export default function CandidateList() {
-  const [selectedStatus, setSelectedStatus] = useState('')
+  const [filters, setFilters] = useState<CandidateFilters>({
+    limit: 100,
+    status: '',
+    minExperience: undefined,
+    maxExperience: undefined,
+    skills: [],
+    location: '',
+    company: '',
+    position: '',
+    education: ''
+  })
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
   const [resumeModal, setResumeModal] = useState<{
     isOpen: boolean
     url: string
@@ -92,10 +104,10 @@ export default function CandidateList() {
 
   const queryClient = useQueryClient()
 
-  // Fetch candidates
+  // Fetch candidates with filters
   const { data: candidates, isLoading, error } = useQuery({
-    queryKey: ['candidates', selectedStatus],
-    queryFn: () => resumeApi.getCandidates(100, selectedStatus || undefined)
+    queryKey: ['candidates', filters],
+    queryFn: () => resumeApi.getCandidates(filters)
   })
 
   // Shortlist mutation
@@ -109,7 +121,6 @@ export default function CandidateList() {
       toast.error(error.message || 'Failed to shortlist candidate')
     }
   })
-
   // View resume
   const handleViewResume = async (candidateId: number) => {
     try {
@@ -124,6 +135,17 @@ export default function CandidateList() {
       toast.error('Failed to load resume')
     }
   }
+
+  // Toggle row expansion
+  const toggleRowExpansion = (candidateId: number) => {
+    const newExpanded = new Set(expandedRows)
+    if (newExpanded.has(candidateId)) {
+      newExpanded.delete(candidateId)
+    } else {
+      newExpanded.add(candidateId)
+    }
+    setExpandedRows(newExpanded)
+  }
   if (error) {
     return (
       <div className="text-github-danger-fg dark:text-github-dark-danger-fg text-center py-4">
@@ -137,37 +159,22 @@ export default function CandidateList() {
     shortlisted: 'bg-github-success-subtle dark:bg-github-dark-success-subtle text-github-success-fg dark:text-github-dark-success-fg border border-github-success-muted dark:border-github-dark-success-muted',
     rejected: 'bg-github-danger-subtle dark:bg-github-dark-danger-subtle text-github-danger-fg dark:text-github-dark-danger-fg border border-github-danger-muted dark:border-github-dark-danger-muted'
   }
-
-  return (    <div>
+  return (
+    <div>
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-github-fg-default dark:text-github-dark-fg-default mb-4">
-          Candidate Database        </h2>
-
-        {/* Status Filter */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-github-fg-default dark:text-github-dark-fg-default mb-2">
-            Filter by Status
-          </label>
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="github-input w-48 text-sm"
-          >
-            <option value="">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="shortlisted">Shortlisted</option>
-            <option value="rejected">Rejected</option>
-          </select>
-        </div>
+          Candidate Database
+        </h2>        {/* Comprehensive Filters Component */}        <CandidateFiltersComponent
+          onFiltersChangeAction={setFilters}
+        />
       </div>
 
       {/* Candidates Table */}
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-github-border-default dark:divide-github-dark-border-default">
-          <thead className="bg-github-canvas-subtle dark:bg-github-dark-canvas-subtle">
+        <table className="min-w-full divide-y divide-github-border-default dark:divide-github-dark-border-default">          <thead className="bg-github-canvas-subtle dark:bg-github-dark-canvas-subtle">
             <tr>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-github-fg-muted dark:text-github-dark-fg-muted uppercase tracking-wider">
-                ID
+                
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-github-fg-muted dark:text-github-dark-fg-muted uppercase tracking-wider">
                 Name
@@ -176,7 +183,10 @@ export default function CandidateList() {
                 Email
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-github-fg-muted dark:text-github-dark-fg-muted uppercase tracking-wider">
-                Years Exp
+                Experience
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-github-fg-muted dark:text-github-dark-fg-muted uppercase tracking-wider">
+                Location
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-github-fg-muted dark:text-github-dark-fg-muted uppercase tracking-wider">
                 Skills
@@ -187,10 +197,11 @@ export default function CandidateList() {
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-github-fg-muted dark:text-github-dark-fg-muted uppercase tracking-wider">
                 Actions
               </th>
-            </tr>          </thead>
-          <tbody className="bg-github-canvas-default dark:bg-github-dark-canvas-default divide-y divide-github-border-muted dark:divide-github-dark-border-muted">{isLoading ? (
+            </tr>
+          </thead>          <tbody className="bg-github-canvas-default dark:bg-github-dark-canvas-default divide-y divide-github-border-muted dark:divide-github-dark-border-muted">
+            {isLoading ? (
               <tr>
-                <td colSpan={7} className="px-6 py-4 text-center">
+                <td colSpan={8} className="px-6 py-4 text-center">
                   <div className="flex justify-center">
                     <svg className="animate-spin h-5 w-5 text-github-accent-emphasis dark:text-github-dark-accent-emphasis" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -198,69 +209,186 @@ export default function CandidateList() {
                     </svg>
                   </div>
                 </td>
-              </tr>            ) : candidates && candidates.length > 0 ? (
+              </tr>
+            ) : candidates && candidates.length > 0 ? (
               candidates.map((candidate: Candidate) => (
-                <tr key={candidate.candidate_id} className="hover:bg-github-canvas-subtle dark:hover:bg-github-dark-canvas-subtle">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-github-fg-default dark:text-github-dark-fg-default">
-                    {candidate.candidate_id}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-github-fg-default dark:text-github-dark-fg-default font-medium">
-                    {candidate.full_name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-github-fg-muted dark:text-github-dark-fg-muted">
-                    {candidate.email || 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-github-fg-muted dark:text-github-dark-fg-muted">
-                    {candidate.years_experience || 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-github-fg-muted dark:text-github-dark-fg-muted">
-                    <div className="flex flex-wrap gap-1">
-                      {candidate.skills.map((skill, idx) => (
-                        <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-github-accent-subtle dark:bg-github-dark-accent-subtle text-github-accent-fg dark:text-github-dark-accent-fg border border-github-accent-muted dark:border-github-dark-accent-muted">
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusBadgeColors[candidate.status]}`}>
-                      {candidate.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                    {/* Shortlist Button */}
-                    <button
-                      onClick={() => shortlist.mutate(candidate.candidate_id)}
-                      disabled={candidate.status === 'shortlisted' || shortlist.isPending}
-                      className={`btn-github text-sm ${
-                        candidate.status === 'shortlisted'
-                          ? 'opacity-50 cursor-not-allowed'
-                          : 'hover:bg-github-success-subtle dark:hover:bg-github-dark-success-subtle hover:text-github-success-fg dark:hover:text-github-dark-success-fg'
-                      }`}
-                    >
-                      {shortlist.isPending ? (
-                        <ChevronUpIcon className="animate-bounce h-4 w-4" />
-                      ) : (
-                        'Shortlist'
-                      )}
-                    </button>
-
-                    {/* View Resume Button */}
-                    {candidate.resume_available && (
+                <React.Fragment key={candidate.candidate_id}>
+                  {/* Main candidate row */}
+                  <tr className="hover:bg-github-canvas-subtle dark:hover:bg-github-dark-canvas-subtle">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-github-fg-default dark:text-github-dark-fg-default">
                       <button
-                        onClick={() => handleViewResume(candidate.candidate_id)}
-                        className="btn-github text-sm hover:bg-github-accent-subtle dark:hover:bg-github-dark-accent-subtle hover:text-github-accent-fg dark:hover:text-github-dark-accent-fg"
+                        onClick={() => toggleRowExpansion(candidate.candidate_id)}
+                        className="p-1 hover:bg-github-neutral-muted dark:hover:bg-github-dark-neutral-muted rounded"
                       >
-                        <EyeIcon className="h-4 w-4 mr-1" />
-                        View
+                        {expandedRows.has(candidate.candidate_id) ? (
+                          <ChevronDownIcon className="h-4 w-4" />
+                        ) : (
+                          <ChevronUpIcon className="h-4 w-4" />
+                        )}
                       </button>
-                    )}
-                  </td>
-                </tr>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-github-fg-default dark:text-github-dark-fg-default font-medium">
+                      <div>
+                        <div className="font-medium">{candidate.full_name}</div>
+                        <div className="text-xs text-github-fg-muted dark:text-github-dark-fg-muted">ID: {candidate.candidate_id}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-github-fg-muted dark:text-github-dark-fg-muted">
+                      {candidate.email || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-github-fg-muted dark:text-github-dark-fg-muted">
+                      {candidate.years_experience ? `${candidate.years_experience} years` : 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-github-fg-muted dark:text-github-dark-fg-muted">
+                      {candidate.location || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-github-fg-muted dark:text-github-dark-fg-muted">
+                      <div className="flex flex-wrap gap-1">
+                        {candidate.skills.slice(0, 3).map((skill, idx) => (
+                          <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-github-accent-subtle dark:bg-github-dark-accent-subtle text-github-accent-fg dark:text-github-dark-accent-fg border border-github-accent-muted dark:border-github-dark-accent-muted">
+                            {skill}
+                          </span>
+                        ))}
+                        {candidate.skills.length > 3 && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-github-neutral-muted dark:bg-github-dark-neutral-muted text-github-fg-muted dark:text-github-dark-fg-muted">
+                            +{candidate.skills.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusBadgeColors[candidate.status]}`}>
+                        {candidate.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                      {/* Shortlist Button */}
+                      <button
+                        onClick={() => shortlist.mutate(candidate.candidate_id)}
+                        disabled={candidate.status === 'shortlisted' || shortlist.isPending}
+                        className={`btn-github text-sm ${
+                          candidate.status === 'shortlisted'
+                            ? 'opacity-50 cursor-not-allowed'
+                            : 'hover:bg-github-success-subtle dark:hover:bg-github-dark-success-subtle hover:text-github-success-fg dark:hover:text-github-dark-success-fg'
+                        }`}
+                      >
+                        {shortlist.isPending ? (
+                          <ChevronUpIcon className="animate-bounce h-4 w-4" />
+                        ) : (
+                          'Shortlist'
+                        )}
+                      </button>
+
+                      {/* View Resume Button */}
+                      {candidate.resume_available && (
+                        <button
+                          onClick={() => handleViewResume(candidate.candidate_id)}
+                          className="btn-github text-sm hover:bg-github-accent-subtle dark:hover:bg-github-dark-accent-subtle hover:text-github-accent-fg dark:hover:text-github-dark-accent-fg"
+                        >
+                          <EyeIcon className="h-4 w-4 mr-1" />
+                          View
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+
+                  {/* Expanded row with additional details */}
+                  {expandedRows.has(candidate.candidate_id) && (
+                    <tr className="bg-github-canvas-subtle dark:bg-github-dark-canvas-subtle">
+                      <td colSpan={8} className="px-6 py-4">
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="space-y-4"
+                        >
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Skills Section */}
+                            <div>
+                              <h4 className="text-sm font-medium text-github-fg-default dark:text-github-dark-fg-default mb-2 flex items-center">
+                                <MagnifyingGlassIcon className="h-4 w-4 mr-2" />
+                                All Skills
+                              </h4>
+                              <div className="flex flex-wrap gap-1">
+                                {candidate.skills.map((skill, idx) => (
+                                  <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-github-accent-subtle dark:bg-github-dark-accent-subtle text-github-accent-fg dark:text-github-dark-accent-fg border border-github-accent-muted dark:border-github-dark-accent-muted">
+                                    {skill}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Contact Information */}
+                            <div>
+                              <h4 className="text-sm font-medium text-github-fg-default dark:text-github-dark-fg-default mb-2">
+                                Contact Information
+                              </h4>
+                              <div className="text-xs text-github-fg-muted dark:text-github-dark-fg-muted space-y-1">
+                                <div><strong>Email:</strong> {candidate.email || 'N/A'}</div>
+                                <div><strong>Phone:</strong> {candidate.phone || 'N/A'}</div>
+                                <div><strong>Location:</strong> {candidate.location || 'N/A'}</div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                            {/* Work Experience */}
+                            {candidate.work_experience && candidate.work_experience.length > 0 && (
+                              <div>
+                                <h4 className="text-sm font-medium text-github-fg-default dark:text-github-dark-fg-default mb-2 flex items-center">
+                                  <BuildingOfficeIcon className="h-4 w-4 mr-2" />
+                                  Work Experience
+                                </h4>
+                                <div className="space-y-2">
+                                  {candidate.work_experience.map((exp, idx) => (
+                                    <div key={idx} className="text-xs text-github-fg-muted dark:text-github-dark-fg-muted border-l-2 border-github-accent-muted dark:border-github-dark-accent-muted pl-3">
+                                      <div className="font-medium">{exp.position} at {exp.company}</div>
+                                      <div className="text-github-fg-subtle dark:text-github-dark-fg-subtle">
+                                        {exp.start_date} - {exp.end_date || 'Present'}
+                                      </div>
+                                      {exp.description && (
+                                        <div className="mt-1">{exp.description}</div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Education */}
+                            {candidate.education && candidate.education.length > 0 && (
+                              <div>
+                                <h4 className="text-sm font-medium text-github-fg-default dark:text-github-dark-fg-default mb-2 flex items-center">
+                                  <AcademicCapIcon className="h-4 w-4 mr-2" />
+                                  Education
+                                </h4>
+                                <div className="space-y-2">
+                                  {candidate.education.map((edu, idx) => (
+                                    <div key={idx} className="text-xs text-github-fg-muted dark:text-github-dark-fg-muted border-l-2 border-github-success-muted dark:border-github-dark-success-muted pl-3">
+                                      <div className="font-medium">{edu.degree}</div>
+                                      <div className="text-github-fg-subtle dark:text-github-dark-fg-subtle">
+                                        {edu.institution}
+                                      </div>
+                                      {edu.graduation_year && (
+                                        <div className="text-github-fg-subtle dark:text-github-dark-fg-subtle">
+                                          Graduated: {edu.graduation_year}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))
             ) : (
               <tr>
-                <td colSpan={7} className="px-6 py-4 text-center text-sm text-github-fg-muted dark:text-github-dark-fg-muted">
+                <td colSpan={8} className="px-6 py-4 text-center text-sm text-github-fg-muted dark:text-github-dark-fg-muted">
                   No candidates found
                 </td>
               </tr>

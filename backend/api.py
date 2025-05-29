@@ -7,7 +7,7 @@ import logging
 import asyncio
 import concurrent.futures
 from datetime import datetime
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends, Query
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -37,6 +37,9 @@ from s3_storage import upload_file_to_s3, generate_presigned_url
 
 # Import shortlisting service
 from shortlisting_service import shortlist_candidates, CandidateScore, ShortlistingResult
+
+# Import authentication middleware
+from auth_middleware import get_current_user, get_current_user_optional
 
 try:
     from pdf2image import convert_from_path
@@ -364,10 +367,12 @@ class CandidateResponse(BaseModel):
 
 @app.post("/upload-resume/", response_model=ResponseModel)
 async def upload_resume(
+    request: Request,
     file: UploadFile = File(...), 
     parse: bool = Form(False), 
     save_to_db: bool = Form(False),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Upload and process a resume file. 
@@ -423,14 +428,14 @@ async def upload_resume(
                 
                 # Generate a presigned URL for temporary access
                 presigned_success, presigned_url = generate_presigned_url(s3_key, expiration=3600*24)  # 24 hours
-                
-                # Save to database with S3 information
+                  # Save to database with S3 information
                 candidate_id = save_candidate_data(
                     parsed_structured_data.dict(),
                     resume_file_path=s3_key,
                     resume_s3_url=presigned_url if presigned_success else s3_url,
-                    original_filename=original_filename
-                )        
+                    original_filename=original_filename,
+                    user_id=current_user['id']
+                )
         # Clean up temporary file
         os.unlink(temp_file_path)
         
@@ -447,13 +452,14 @@ async def upload_resume(
         logger.error(f"Error processing file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
-async def process_single_file(file: UploadFile, batch_id: str, parse: bool = True, save_to_db: bool = True) -> FileProcessingResult:
+async def process_single_file(file: UploadFile, batch_id: str, user_id: int, parse: bool = True, save_to_db: bool = True) -> FileProcessingResult:
     """
     Process a single file in a batch operation
     
     Args:
         file: The uploaded file
         batch_id: The batch ID for this upload session
+        user_id: ID of the user uploading the file
         parse: Whether to parse the resume
         save_to_db: Whether to save to database
         
@@ -540,15 +546,15 @@ async def process_single_file(file: UploadFile, batch_id: str, parse: bool = Tru
                 
                 # Generate a presigned URL for temporary access
                 presigned_success, presigned_url = generate_presigned_url(s3_key, expiration=3600*24)  # 24 hours
-                
-                # Save to database with file hash and batch ID
+                  # Save to database with file hash and batch ID
                 candidate_id = save_candidate_data_with_hash(
                     parsed_structured_data.dict(),
                     resume_file_path=s3_key,
                     resume_s3_url=presigned_url if presigned_success else s3_url,
                     original_filename=filename,
                     file_hash=file_hash,
-                    batch_id=batch_id
+                    batch_id=batch_id,
+                    user_id=user_id
                 )
         
         # Clean up temporary file
@@ -576,9 +582,11 @@ async def process_single_file(file: UploadFile, batch_id: str, parse: bool = Tru
 
 @app.post("/upload-resumes-batch/", response_model=BatchProcessingResponse)
 async def upload_resumes_batch(
+    request: Request,
     files: List[UploadFile] = File(...),
     parse: bool = Form(True),
-    save_to_db: bool = Form(True)
+    save_to_db: bool = Form(True),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Upload and process multiple resume files in batch.
@@ -589,13 +597,12 @@ async def upload_resumes_batch(
     
     if len(files) > 50:  # Limit batch size
         raise HTTPException(status_code=400, detail="Maximum 50 files allowed per batch")
-    
-    # Generate a unique batch ID
+      # Generate a unique batch ID
     batch_id = generate_batch_id()
     
     try:
         # Process files in parallel using asyncio.gather
-        tasks = [process_single_file(file, batch_id, parse, save_to_db) for file in files]
+        tasks = [process_single_file(file, batch_id, current_user['id'], parse, save_to_db) for file in files]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
         # Convert any exceptions to error results
@@ -649,12 +656,21 @@ def read_root():
     return {"message": "Resume Processing API is running! Use /upload-resume/ endpoint to process resumes."}
 
 @app.get("/candidates/", response_model=List[Dict[str, Any]])
-def get_candidates(
+async def get_candidates(
+    request: Request,
     limit: int = Query(100, description="Maximum number of candidates to return"),
     status: Optional[str] = Query(None, description="Filter by status (pending, shortlisted, rejected)"),
-    db: Session = Depends(get_db)
+    min_experience: Optional[int] = Query(None, description="Minimum years of experience"),
+    max_experience: Optional[int] = Query(None, description="Maximum years of experience"),
+    skills: Optional[str] = Query(None, description="Comma-separated list of skills to filter by"),
+    location: Optional[str] = Query(None, description="Location to filter by (partial match)"),
+    company: Optional[str] = Query(None, description="Company name to filter by (partial match)"),
+    position: Optional[str] = Query(None, description="Position/title to filter by (partial match)"),
+    education: Optional[str] = Query(None, description="Education/degree to filter by (partial match)"),
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
-    """Get a list of all candidates with optional filtering by status"""
+    """Get a list of all candidates with comprehensive filtering options (user-specific)"""
     try:
         status_enum = None
         if status:
@@ -663,12 +679,54 @@ def get_candidates(
             except KeyError:
                 raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
         
-        candidates = get_all_candidates(limit=limit, status=status_enum)
+        # Parse skills from comma-separated string
+        skills_list = None
+        if skills:
+            skills_list = [skill.strip() for skill in skills.split(',') if skill.strip()]
         
-        # Convert SQLAlchemy objects to dictionaries
+        # Get candidates with comprehensive filtering
+        candidates = get_all_candidates(
+            limit=limit, 
+            status=status_enum, 
+            user_id=current_user['id'],
+            min_experience=min_experience,
+            max_experience=max_experience,
+            skills=skills_list,
+            location=location,
+            company=company,
+            position=position,
+            education=education
+        )
+        
+        # Convert SQLAlchemy objects to dictionaries with comprehensive data
         result = []
         for candidate in candidates:
             skills = [skill.skill_name for skill in candidate.skills] if candidate.skills else []
+            
+            # Get education data
+            education_data = []
+            if candidate.education:
+                for edu in candidate.education:
+                    education_data.append({
+                        "degree": edu.degree,
+                        "institution": edu.institution,
+                        "graduation_year": edu.graduation_year,
+                        "gpa": edu.gpa
+                    })
+            
+            # Get work experience data
+            work_experience = []
+            if candidate.work_experiences:
+                for exp in candidate.work_experiences:
+                    work_experience.append({
+                        "company": exp.company,
+                        "position": exp.position,
+                        "start_date": exp.start_date,
+                        "end_date": exp.end_date,
+                        "duration": exp.duration,
+                        "description": exp.description
+                    })
+            
             candidate_dict = {
                 "candidate_id": candidate.candidate_id,
                 "full_name": candidate.full_name,
@@ -680,7 +738,9 @@ def get_candidates(
                 "created_at": candidate.created_at.isoformat() if candidate.created_at else None,
                 "resume_available": bool(candidate.resume_file_path),
                 "original_filename": candidate.original_filename,
-                "skills": skills
+                "skills": skills,
+                "education": education_data,
+                "work_experience": work_experience
             }
             result.append(candidate_dict)
         
@@ -692,26 +752,46 @@ def get_candidates(
 
 @app.post("/candidates/{candidate_id}/shortlist")
 def shortlist_candidate_endpoint(
+    request: Request,
     candidate_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
-    Mark a candidate as shortlisted
+    Mark a candidate as shortlisted (user-specific)
     """
-    success = shortlist_candidate(candidate_id)
-    if not success:
-        raise HTTPException(status_code=404, detail=f"Candidate with ID {candidate_id} not found")
+    try:
+        # Get candidate and verify ownership
+        candidate = db.query(Candidate).filter(
+            Candidate.candidate_id == candidate_id,
+            Candidate.user_id == current_user['id']
+        ).first()
+        
+        if not candidate:
+            raise HTTPException(status_code=404, detail=f"Candidate with ID {candidate_id} not found or not accessible")
+        
+        # Update status
+        candidate.status = Status.SHORTLISTED
+        candidate.updated_at = datetime.utcnow()
+        db.commit()
+        
+        return {"message": f"Candidate with ID {candidate_id} has been shortlisted"}
     
-    return {"message": f"Candidate with ID {candidate_id} has been shortlisted"}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error shortlisting candidate: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error shortlisting candidate: {str(e)}")
 
 @app.patch("/candidates/{candidate_id}/status")
 def update_candidate_status(
+    request: Request,
     candidate_id: int,
     status: str = Form(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
-    Update a candidate's status (pending, shortlisted, rejected)
+    Update a candidate's status (pending, shortlisted, rejected) (user-specific)
     """
     try:
         # Validate status
@@ -719,10 +799,14 @@ def update_candidate_status(
         if status.lower() not in valid_statuses:
             raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
         
-        # Get candidate
-        candidate = db.query(Candidate).filter(Candidate.candidate_id == candidate_id).first()
+        # Get candidate and verify ownership
+        candidate = db.query(Candidate).filter(
+            Candidate.candidate_id == candidate_id,
+            Candidate.user_id == current_user['id']
+        ).first()
+        
         if not candidate:
-            raise HTTPException(status_code=404, detail=f"Candidate with ID {candidate_id} not found")
+            raise HTTPException(status_code=404, detail=f"Candidate with ID {candidate_id} not found or not accessible")
         
         # Update status
         status_enum = Status[status.upper()]
@@ -766,18 +850,23 @@ def initialize_database():
 
 @app.get("/resumes/{candidate_id}/view")
 async def view_resume(
+    request: Request,
     candidate_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
-    Get a URL to view a candidate's resume
+    Get a URL to view a candidate's resume (user-specific)
     """
     try:
-        # Get candidate from database
-        candidate = db.query(Candidate).filter(Candidate.candidate_id == candidate_id).first()
+        # Get candidate from database and verify ownership
+        candidate = db.query(Candidate).filter(
+            Candidate.candidate_id == candidate_id,
+            Candidate.user_id == current_user['id']
+        ).first()
         
         if not candidate:
-            raise HTTPException(status_code=404, detail=f"Candidate with ID {candidate_id} not found")
+            raise HTTPException(status_code=404, detail=f"Candidate with ID {candidate_id} not found or not accessible")
         
         if not candidate.resume_file_path:
             raise HTTPException(status_code=404, detail="No resume file found for this candidate")
@@ -807,18 +896,20 @@ async def view_resume(
 # Shortlisting endpoints
 @app.post("/shortlist-by-description/", response_model=ShortlistingResult)
 async def shortlist_by_job_description(
+    request: Request,
     job_description: str = Form(...),
     min_score: int = Form(70),
-    limit: Optional[int] = Form(None)
+    limit: Optional[int] = Form(None),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
-    Shortlist candidates based on a job description.
+    Shortlist candidates based on a job description (user-specific).
     """
     try:
         if not job_description.strip():
             raise HTTPException(status_code=400, detail="Job description cannot be empty")
         
-        result = shortlist_candidates(job_description, min_score, limit)
+        result = shortlist_candidates(job_description, min_score, limit, current_user['id'])
         return result
     
     except Exception as e:
@@ -827,12 +918,14 @@ async def shortlist_by_job_description(
 
 @app.post("/shortlist-by-file/", response_model=ShortlistingResult)
 async def shortlist_by_job_file(
+    request: Request,
     file: UploadFile = File(...),
     min_score: int = Form(70),
-    limit: Optional[int] = Form(None)
+    limit: Optional[int] = Form(None),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
-    Shortlist candidates based on a job description file (PDF, DOCX, TXT).
+    Shortlist candidates based on a job description file (PDF, DOCX, TXT) (user-specific).
     """
     try:
         # Check if file extension is supported
@@ -854,14 +947,13 @@ async def shortlist_by_job_file(
                 job_description = extract_text_from_docx(temp_file_path)
             elif file_extension == "txt":
                 job_description = extract_text_from_txt(temp_file_path)
-            
-            # Clean up temporary file
+              # Clean up temporary file
             os.unlink(temp_file_path)
             
             if not job_description.strip():
                 raise HTTPException(status_code=400, detail="Could not extract text from the uploaded file")
             
-            result = shortlist_candidates(job_description, min_score, limit)
+            result = shortlist_candidates(job_description, min_score, limit, current_user['id'])
             return result
         
         except Exception as e:

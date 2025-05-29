@@ -1,9 +1,19 @@
 import axios from 'axios';
 
+// API configuration
 const API_URL = 'http://localhost:8000';
 
 export const api = axios.create({
   baseURL: API_URL,
+  withCredentials: true, // Include cookies for session management
+});
+
+// Auth API configuration
+const AUTH_API_URL = 'http://localhost:4000';
+
+export const authApi = axios.create({
+  baseURL: AUTH_API_URL,
+  withCredentials: true, // Include cookies for session management
 });
 
 export interface UploadResponse {
@@ -31,6 +41,22 @@ export interface BatchProcessingResponse {
   results: FileProcessingResult[];
 }
 
+export interface Education {
+  degree: string;
+  institution: string;
+  graduation_year: number | null;
+  gpa: number | null;
+}
+
+export interface WorkExperience {
+  company: string;
+  position: string;
+  start_date: string;
+  end_date: string;
+  duration: string;
+  description: string | null;
+}
+
 export interface Candidate {
   candidate_id: number;
   full_name: string;
@@ -43,6 +69,8 @@ export interface Candidate {
   resume_available: boolean;
   original_filename: string | null;
   skills: string[];
+  education: Education[];
+  work_experience: WorkExperience[];
 }
 
 export interface ParsedData {
@@ -80,6 +108,38 @@ export interface ShortlistingResult {
   scoring_criteria: string;
 }
 
+// Authentication API response interfaces
+export interface User {
+  id: number;
+  email: string;
+  name: string;
+  profilePicture?: string;
+  lastLogin?: string;
+}
+
+export interface AuthResponse {
+  authenticated: boolean;
+  user: User | null;
+}
+
+export interface AuthError {
+  error: string;
+  message: string;
+}
+
+// Filter interface for candidate search
+export interface CandidateFilters {
+  limit?: number;
+  status?: string;
+  minExperience?: number;
+  maxExperience?: number;
+  skills?: string[];
+  location?: string;
+  company?: string;
+  position?: string;
+  education?: string;
+}
+
 export const resumeApi = {
   uploadResume: async (file: File, parse: boolean = true, saveToDb: boolean = true): Promise<UploadResponse> => {
     const formData = new FormData();
@@ -110,10 +170,27 @@ export const resumeApi = {
     return response.data;
   },
 
-  getCandidates: async (limit: number = 100, status?: string): Promise<Candidate[]> => {
+  getCandidates: async (filters: CandidateFilters = {}): Promise<Candidate[]> => {
     const params = new URLSearchParams();
-    params.append('limit', String(limit));
-    if (status) params.append('status', status);
+    
+    // Add basic filters
+    if (filters.limit) params.append('limit', String(filters.limit));
+    if (filters.status) params.append('status', filters.status);
+    
+    // Add experience filters
+    if (filters.minExperience !== undefined) params.append('min_experience', String(filters.minExperience));
+    if (filters.maxExperience !== undefined) params.append('max_experience', String(filters.maxExperience));
+    
+    // Add text-based filters
+    if (filters.location) params.append('location', filters.location);
+    if (filters.company) params.append('company', filters.company);
+    if (filters.position) params.append('position', filters.position);
+    if (filters.education) params.append('education', filters.education);
+    
+    // Add skills filter (convert array to comma-separated string)
+    if (filters.skills && filters.skills.length > 0) {
+      params.append('skills', filters.skills.join(','));
+    }
     
     const response = await api.get<Candidate[]>('/candidates/?' + params.toString());
     return response.data;
@@ -177,4 +254,36 @@ export const resumeApi = {
     const response = await api.get('/shortlisting-history/');
     return response.data;
   },
+};
+
+// Authentication API functions
+export const authApiClient = {
+  // Check authentication status
+  checkAuthStatus: async (): Promise<AuthResponse> => {
+    const response = await authApi.get<AuthResponse>('/auth/status');
+    return response.data;
+  },
+
+  // Get current user profile
+  getUserProfile: async (): Promise<{ success: boolean; user: User }> => {
+    const response = await authApi.get('/auth/profile');
+    return response.data;
+  },
+
+  // Logout user
+  logout: async (): Promise<{ success: boolean; message: string }> => {
+    const response = await authApi.post('/auth/logout');
+    return response.data;
+  },
+
+  // Get Google OAuth login URL
+  getGoogleLoginUrl: (): string => {
+    return `${AUTH_API_URL}/auth/google`;
+  },
+
+  // Health check for auth service
+  healthCheck: async (): Promise<{ status: string; authenticated: boolean }> => {
+    const response = await authApi.get('/health');
+    return response.data;
+  }
 };

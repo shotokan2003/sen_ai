@@ -237,15 +237,19 @@ def parse_scoring_response(response: str) -> tuple:
         logger.error(f"Error parsing scoring response: {str(e)}")
         return 0, "Error parsing response", [], ["Could not parse evaluation"]
 
-def shortlist_candidates(job_description: str, min_score: int = 70, limit: Optional[int] = None) -> ShortlistingResult:
+def shortlist_candidates(job_description: str, min_score: int = 70, limit: Optional[int] = None, user_id: Optional[int] = None) -> ShortlistingResult:
     """
     Shortlist candidates based on job description
     """
     db = next(get_db())
     
     try:
-        # Get all candidates from database
-        candidates = db.query(Candidate).all()
+        # Get candidates from database (optionally filtered by user)
+        query = db.query(Candidate)
+        if user_id:
+            query = query.filter(Candidate.user_id == user_id)
+        
+        candidates = query.all()
         
         if not candidates:
             return ShortlistingResult(

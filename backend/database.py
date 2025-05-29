@@ -60,6 +60,7 @@ class Candidate(Base):
     __tablename__ = "candidates"
 
     candidate_id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False)  # Foreign key to users table
     full_name = Column(String(255), nullable=False)
     email = Column(String(255), unique=True)
     phone = Column(String(50))
@@ -136,7 +137,7 @@ def init_db():
     except Exception as e:
         logger.error(f"Error creating database tables: {e}")
 
-def save_candidate_data(parsed_data, resume_file_path=None, resume_s3_url=None, original_filename=None):
+def save_candidate_data(parsed_data, resume_file_path=None, resume_s3_url=None, original_filename=None, user_id=None):
     """
     Save parsed resume data to database (legacy function for backward compatibility)
     
@@ -145,6 +146,7 @@ def save_candidate_data(parsed_data, resume_file_path=None, resume_s3_url=None, 
         resume_file_path (str, optional): Path or key to the resume in S3
         resume_s3_url (str, optional): Full S3 URL to the resume
         original_filename (str, optional): Original filename of the uploaded resume
+        user_id (int, optional): ID of the user uploading the resume
     
     Returns:
         int: The ID of the inserted candidate
@@ -155,26 +157,81 @@ def save_candidate_data(parsed_data, resume_file_path=None, resume_s3_url=None, 
         resume_s3_url, 
         original_filename, 
         file_hash=None, 
-        batch_id=None
+        batch_id=None,
+        user_id=user_id
     )
 
-def get_all_candidates(limit=100, status=None):
+def get_all_candidates(limit=100, status=None, user_id=None, min_experience=None, max_experience=None, 
+                      skills=None, location=None, company=None, position=None, education=None):
     """
-    Get all candidates with optional filtering by status
+    Get all candidates with comprehensive filtering options
     
     Args:
         limit (int): Maximum number of candidates to return
         status (Status, optional): Filter by candidate status
+        user_id (int, optional): Filter by user ID (for user-specific data)
+        min_experience (int, optional): Minimum years of experience
+        max_experience (int, optional): Maximum years of experience
+        skills (list, optional): List of skills to filter by
+        location (str, optional): Location to filter by (partial match)
+        company (str, optional): Company name to filter by (partial match)
+        position (str, optional): Position/title to filter by (partial match)
+        education (str, optional): Education/degree to filter by (partial match)
         
     Returns:
         list: List of candidate objects with relationships loaded
     """
+    from sqlalchemy import and_, or_, func
+    
     db = SessionLocal()
     try:
         query = db.query(Candidate)
         
+        # Basic filters
         if status:
             query = query.filter(Candidate.status == status)
+            
+        if user_id:
+            query = query.filter(Candidate.user_id == user_id)
+            
+        # Experience filters
+        if min_experience is not None:
+            query = query.filter(Candidate.years_experience >= min_experience)
+            
+        if max_experience is not None:
+            query = query.filter(Candidate.years_experience <= max_experience)
+            
+        # Location filter
+        if location:
+            query = query.filter(Candidate.location.ilike(f"%{location}%"))
+        
+        # Skills filter
+        if skills and len(skills) > 0:
+            # Join with skills table and filter by skill names
+            query = query.join(Skill).filter(
+                or_(*[Skill.skill_name.ilike(f"%{skill.strip()}%") for skill in skills])
+            ).distinct()
+        
+        # Work experience filters
+        if company or position:
+            query = query.join(WorkExperience)
+            
+            if company:
+                query = query.filter(WorkExperience.company.ilike(f"%{company}%"))
+                
+            if position:
+                query = query.filter(WorkExperience.position.ilike(f"%{position}%"))
+                
+            query = query.distinct()
+        
+        # Education filter
+        if education:
+            query = query.join(Education).filter(
+                or_(
+                    Education.degree.ilike(f"%{education}%"),
+                    Education.institution.ilike(f"%{education}%")
+                )
+            ).distinct()
         
         candidates = query.limit(limit).all()
         
@@ -278,7 +335,7 @@ def generate_batch_id():
     return str(uuid.uuid4())
 
 def save_candidate_data_with_hash(parsed_data, resume_file_path=None, resume_s3_url=None, 
-                                 original_filename=None, file_hash=None, batch_id=None):
+                                 original_filename=None, file_hash=None, batch_id=None, user_id=None):
     """
     Save parsed resume data to database with file hash and batch ID
     
@@ -289,14 +346,14 @@ def save_candidate_data_with_hash(parsed_data, resume_file_path=None, resume_s3_
         original_filename (str, optional): Original filename of the uploaded resume
         file_hash (str, optional): SHA256 hash of the file
         batch_id (str, optional): Batch ID for batch uploads
+        user_id (int, optional): ID of the user uploading the resume
     
     Returns:
         int: The ID of the inserted candidate
     """
     db = SessionLocal()
     
-    try:
-        # Extract candidate data
+    try:        # Extract candidate data
         candidate = Candidate(
             full_name=parsed_data.get('full_name', 'Unknown'),
             email=parsed_data.get('email'),
@@ -308,6 +365,7 @@ def save_candidate_data_with_hash(parsed_data, resume_file_path=None, resume_s3_
             original_filename=original_filename,
             file_hash=file_hash,
             batch_id=batch_id,
+            user_id=user_id,
             status=Status.PENDING
         )
         
