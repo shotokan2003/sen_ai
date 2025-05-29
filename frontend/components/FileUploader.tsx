@@ -25,11 +25,10 @@ export default function FileUploader() {
   const [saveToDb, setSaveToDb] = useState(true)
   const [batchResult, setBatchResult] = useState<BatchProcessingResponse | null>(null)
   const [duplicateHandling, setDuplicateHandling] = useState<DuplicateHandling>('strict')
-
   // Batch upload mutation
   const uploadBatch = useMutation({
-  mutationFn: async () => {
-      if (files.length === 0) throw new Error('No files selected')
+    mutationFn: async () => {
+      if (files.length === 0) throw new Error('No resume files selected')
       return resumeApi.uploadResumesBatch(files, true, saveToDb, duplicateHandling)
     },
     onSuccess: (data) => {
@@ -43,19 +42,45 @@ export default function FileUploader() {
       toast.error(message)
     }
   })
+  
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    // Add unique IDs to files
-    const filesWithId: FileWithId[] = acceptedFiles.map(file => {
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit per file
-        toast.error(`File ${file.name} is too large. Maximum size is 10MB.`)
-        return null
+    // Validate file types to ensure only resumes
+    const validFiles = acceptedFiles.filter(file => {
+      // Check file type
+      const fileType = file.type
+      if (!(
+        fileType === 'application/pdf' || 
+        fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        fileType === 'text/plain'
+      )) {
+        toast.error(`${file.name} is not a supported resume format. Please use PDF, DOCX, or TXT files.`)
+        return false
       }
-      return Object.assign(file, { id: `${file.name}-${Date.now()}-${Math.random()}` })
-    }).filter(Boolean) as FileWithId[]
+      
+      // Check file size
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit per file
+        toast.error(`${file.name} is too large. Maximum size is 10MB.`)
+        return false
+      }
+      
+      // Check if file is empty/blank
+      if (file.size === 0) {
+        toast.error(`${file.name} appears to be empty. Please upload a valid resume.`)
+        return false
+      }
+      
+      return true
+    })
+    
+    // Add unique IDs to valid files
+    const filesWithId: FileWithId[] = validFiles.map(file => 
+      Object.assign(file, { id: `${file.name}-${Date.now()}-${Math.random()}` })
+    )
 
     // Add to existing files
     setFiles(prev => [...prev, ...filesWithId])
   }, [])
+  
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
@@ -63,7 +88,20 @@ export default function FileUploader() {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
       'text/plain': ['.txt']
     },
-    multiple: true
+    multiple: true,
+    maxSize: 10 * 1024 * 1024, // 10MB in bytes
+    onDropRejected: (rejectedFiles) => {
+      rejectedFiles.forEach(rejection => {
+        const { file, errors } = rejection
+        if (errors.some(e => e.code === 'file-too-large')) {
+          toast.error(`${file.name} is too large. Maximum size is 10MB.`)
+        } else if (errors.some(e => e.code === 'file-invalid-type')) {
+          toast.error(`${file.name} is not a supported resume format. Please use PDF, DOCX, or TXT files.`)
+        } else {
+          toast.error(`${file.name} could not be uploaded: ${errors[0].message}`)
+        }
+      })
+    }
   })
 
   const removeFile = (fileId: string) => {
@@ -74,12 +112,124 @@ export default function FileUploader() {
     setFiles([])
     setBatchResult(null)
   }
-  const handleUpload = () => {
+  const handleUpload = async () => {
+    // Check if any files are selected
     if (files.length === 0) {
-      toast.error('Please select files to upload')
+      toast.error('Please select resume files to upload')
       return
     }
-
+    
+    // Show global loading toast for validation process
+    const batchLoadingToast = toast.loading(`Validating ${files.length} resume file(s)...`)    // Track validation details without showing individual toasts
+    const validationDetails: {
+      valid: FileWithId[];
+      invalid: { file: FileWithId; reason: string }[];
+      errors: { file: FileWithId; error: unknown }[];
+    } = {
+      valid: [],
+      invalid: [],
+      errors: []
+    }
+      // Validate that files contain actual resume content using LLM
+    const validateFileContent = async (file: FileWithId): Promise<boolean> => {
+      // Check for empty files again (in case they were added directly)
+      if (file.size === 0) {
+        validationDetails.invalid.push({ 
+          file, 
+          reason: 'File appears to be empty.' 
+        })
+        return false
+      }
+      
+      try {
+        // Call the backend API to validate the resume using LLM
+        const validationResult = await resumeApi.validateResumeContent(file)
+        
+        // Handle validation result
+        if (!validationResult.is_resume) {
+          // Prepare error message
+          let errorMessage = `${validationResult.reasoning}`
+          
+          // Add missing elements if available
+          if (validationResult.missing_elements && validationResult.missing_elements.length > 0) {
+            errorMessage += ` Missing: ${validationResult.missing_elements.join(', ')}.`
+          }
+          
+          validationDetails.invalid.push({ file, reason: errorMessage })
+          return false
+        }
+        
+        validationDetails.valid.push(file)
+        return true
+      } catch (error) {
+        console.error(`Error validating ${file.name}:`, error)
+        validationDetails.errors.push({ file, error })
+        
+        // Fall back to basic checks if the validation API fails
+        if (file.size < 1000) { // Extremely small files are unlikely to be valid resumes
+          validationDetails.invalid.push({ 
+            file, 
+            reason: 'File is too small to be a valid resume.' 
+          })
+          return false
+        }
+        
+        // Allow files to pass in case of API failure with reasonable size
+        validationDetails.valid.push(file)
+        return true
+      }
+    }
+    
+    // Validate all files concurrently
+    const validationResults = await Promise.all(
+      files.map(file => validateFileContent(file))
+    )
+    
+    // Dismiss batch loading toast
+    toast.dismiss(batchLoadingToast)
+    
+    // Show summary notifications instead of individual ones
+    if (validationDetails.invalid.length > 0) {
+      // Create a summary message for invalid files
+      if (validationDetails.invalid.length === 1) {
+        const item = validationDetails.invalid[0]
+        toast.error(`${item.file.name} is not a valid resume: ${item.reason}`)
+      } else {
+        toast.error(`${validationDetails.invalid.length} file(s) could not be validated as proper resumes.`, {
+          duration: 5000,
+        })
+        
+        // Show a detailed toast with all invalid files (limit to first 3 to avoid clutter)
+        const detailsToShow = validationDetails.invalid.slice(0, 3)
+        const remainingCount = validationDetails.invalid.length - detailsToShow.length
+        
+        const detailMessage = detailsToShow.map(item => 
+          `• ${item.file.name}: ${item.reason}`
+        ).join('\n') + (remainingCount > 0 ? `\n• ...and ${remainingCount} more` : '')
+        
+        toast.error(detailMessage, { duration: 8000 })
+      }
+      
+      // Filter out invalid files
+      const validFiles = files.filter((_, index) => validationResults[index])
+      if (validFiles.length === 0) {
+        toast.error('No valid resume files to upload. Please ensure files contain actual resume content.')
+        return
+      }
+      setFiles(validFiles)
+    }
+    
+    if (validationDetails.errors.length > 0) {
+      toast.error(`Validation API errors encountered for ${validationDetails.errors.length} file(s). Basic validation used instead.`, { 
+        duration: 4000 
+      })
+    }
+    
+    if (validationDetails.valid.length > 0) {
+      toast.success(`${validationDetails.valid.length} file(s) validated successfully!`)
+    }
+    
+    // Proceed with upload
     uploadBatch.mutate()
   }
 
@@ -110,8 +260,10 @@ export default function FileUploader() {
   }
 
   const isUploading = uploadBatch.isPending
+  
   return (
-    <div className="space-y-6">      {/* File Drop Zone */}
+    <div className="space-y-6">
+      {/* File Drop Zone with clearer messaging */}
       <div 
         {...getRootProps()}
         className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
@@ -120,19 +272,28 @@ export default function FileUploader() {
             : 'border-github-border-default dark:border-github-border-default-dark hover:border-github-accent-fg dark:hover:border-github-accent-fg-dark'
           } bg-github-canvas-subtle dark:bg-github-canvas-default-dark`}
       >
-        <input {...getInputProps()} />
+        <input {...getInputProps()} />        
         <div className="flex flex-col items-center space-y-4">
           <FolderIcon className="w-12 h-12 text-github-fg-muted dark:text-github-fg-muted-dark" />
           <p className="text-github-fg-default dark:text-github-fg-default-dark">
             {isDragActive ? (
-              "Drop your files here"
+              "Drop your resume files here"
             ) : (
-              "Drag and drop resumes, or click to browse"
+              "Drag and drop resume files, or click to browse"
             )}
           </p>
           <p className="text-sm text-github-fg-muted dark:text-github-fg-muted-dark">
             Supports PDF, DOCX, and TXT files up to 10MB each
             (Maximum 50 files per batch)
+          </p>
+          <p className="text-xs text-github-fg-muted dark:text-github-fg-muted-dark">
+            Files must contain actual resume content to be processed
+          </p>
+          <p className="text-xs text-github-danger-fg dark:text-github-danger-fg-dark">
+            Warning: AI-based validation will check for contact info, education & skills
+          </p>
+          <p className="text-xs text-github-danger-fg dark:text-github-danger-fg-dark">
+            Empty, blank, or non-resume files will be rejected
           </p>
         </div>
       </div>
@@ -172,13 +333,17 @@ export default function FileUploader() {
             ))}
           </div>
         </div>
-      )}      {/* Options */}
+      )}
+      
+      {/* Options */}
       <div className="flex items-center space-x-6">
-        <label className="flex items-center space-x-2">          <input
+        <label className="flex items-center space-x-2">
+          <input
             type="checkbox"
             checked={saveToDb}
             onChange={(e) => setSaveToDb(e.target.checked)}
-            className="accent-github-accent-fg dark:accent-github-accent-fg-dark cursor-pointer"          />
+            className="accent-github-accent-fg dark:accent-github-accent-fg-dark cursor-pointer"
+          />
           <span className="text-sm text-github-fg-muted dark:text-github-fg-muted-dark">Save to database</span>
         </label>
         
@@ -187,7 +352,8 @@ export default function FileUploader() {
             <span className="text-sm text-github-fg-muted dark:text-github-fg-muted-dark">Duplicate handling:</span>
             <select 
               value={duplicateHandling}
-              onChange={(e) => setDuplicateHandling(e.target.value as DuplicateHandling)}              className="github-input text-sm bg-github-canvas-subtle dark:bg-github-canvas-default-dark border border-github-border-default dark:border-github-border-default-dark rounded px-2 py-1 text-github-fg-muted dark:text-github-fg-muted-dark"
+              onChange={(e) => setDuplicateHandling(e.target.value as DuplicateHandling)}
+              className="github-input text-sm bg-github-canvas-subtle dark:bg-github-canvas-default-dark border border-github-border-default dark:border-github-border-default-dark rounded px-2 py-1 text-github-fg-muted dark:text-github-fg-muted-dark"
             >
               <option value="strict">Strict (No duplicates)</option>
               <option value="allow_updates">Allow updates (Same person)</option>
@@ -206,7 +372,8 @@ export default function FileUploader() {
             files.length === 0 || isUploading ? 'opacity-50 cursor-not-allowed' : ''
           }`}
         >
-          <CloudArrowUpIcon className="w-5 h-5 mr-2" />          {isUploading ? (
+          <CloudArrowUpIcon className="w-5 h-5 mr-2" />
+          {isUploading ? (
             <span className="inline-flex items-center">
               <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-github-fg-onEmphasis dark:text-github-fg-onEmphasis" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

@@ -141,7 +141,21 @@ export interface CandidateFilters {
   education?: string;
 }
 
+export interface ResumeValidationResult {
+  is_resume: boolean;
+  reasoning: string;
+  missing_elements: string[];
+}
+
 export const resumeApi = {
+  validateResumeContent: async (file: File): Promise<ResumeValidationResult> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await api.post<ResumeValidationResult>('/validate-resume-content/', formData);
+    return response.data;
+  },
+
   uploadResume: async (file: File, parse: boolean = true, saveToDb: boolean = true, duplicateHandling: DuplicateHandling = 'strict'): Promise<UploadResponse> => {
     const formData = new FormData();
     formData.append('file', file);

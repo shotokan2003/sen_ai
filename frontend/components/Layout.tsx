@@ -5,7 +5,7 @@ import UserProfile from './UserProfile'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-github-canvas-default dark:bg-github-dark-canvas-default">
+    <div className="min-h-screen bg-github-canvas-subtle dark:bg-github-dark-canvas-default">
       <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
         <header className="mb-8 border-b border-github-border-default dark:border-github-dark-border-default pb-6">
           <div className="flex justify-between items-start mb-4">

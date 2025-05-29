@@ -174,7 +174,7 @@ def extract_resume_data(resume_text):
     - Location (City, State/Country)
     - Education (Degree, Institution, Year) - list all
     - Work Experience (Company, Position, Duration) - list all
-    - Skills (Technical and Soft Skills) - list all (only names like python,nextjs,leadership,etc)
+    - Skills (Technical and Soft Skills) - list all individual skills separated by commas (e.g., "Python, JavaScript, Leadership")
     - Years of Experience - IMPORTANT: If not explicitly stated, calculate this by adding up all work experience durations or estimate based on career progression just show the number no explaination needed
 
     Resume Text:
@@ -203,13 +203,15 @@ def extract_resume_data(resume_text):
     - [Additional work experience entries]
 
     ## Skills
-    [List of extracted skills]
+    [List all skills separated by commas, e.g., "Python, JavaScript, Leadership, Project Management"]
 
     ## Years of Experience
     [Number of years] - YOU MUST PROVIDE THIS! Calculate if not explicitly stated in resume and display only the number
 
-    IMPORTANT: For education year, use ONLY 4-digit years (like 2020, 2019, 2018). Do not use locations, ranges, or other text.
-    If a field is not found, indicate "Not found" for that field only.
+    IMPORTANT: 
+    - For education year, use ONLY 4-digit years (like 2020, 2019, 2018).
+    - For skills, make sure to list individual skills separated by commas. Each skill should be 1-3 words maximum.
+    - If a field is not found, indicate "Not found" for that field only.
     """
 
     chat_completion = client.chat.completions.create(
@@ -333,16 +335,54 @@ def parse_markdown_data(markdown_data: str) -> ParsedResumeData:
             # Process skills
             skills_text = content.replace('Not found', '').strip()
             if skills_text:
-                # Split by commas, or if in a list format, extract list items
+                # Process skills with improved splitting logic
+                # First handle bullet point list format if present
                 if '\n-' in skills_text:
                     for skill_line in skills_text.split('\n'):
                         if skill_line.startswith('- '):
-                            skill = skill_line[2:].strip()
-                            if skill:
-                                data["skills"].append(skill)
-                else:
-                    skills = [s.strip() for s in skills_text.replace(', ', ',').split(',')]
+                            skill_text = skill_line[2:].strip()
+                            # Further split by commas if present
+                            if ',' in skill_text:
+                                for sub_skill in skill_text.split(','):
+                                    clean_skill = sub_skill.strip()
+                                    if clean_skill:
+                                        data["skills"].append(clean_skill)
+                            else:
+                                if skill_text:
+                                    data["skills"].append(skill_text)
+                # Handle comma-separated list
+                elif ',' in skills_text:
+                    skills = [s.strip() for s in skills_text.split(',')]
                     data["skills"].extend([s for s in skills if s])
+                # Handle space-separated list (potential issue case)
+                else:
+                    # Try to break apart space-separated multi-word skills
+                    # This handles the case where the LLM outputs skills without commas
+                    import re
+                    # Look for common skill separators or patterns
+                    potential_skills = re.split(r'\s+(?=[A-Z]|\d)|(?<=\w)\s+(?=[A-Z])', skills_text)
+                    
+                    # If this produced too many small fragments or just one big chunk, 
+                    # try a more aggressive splitting approach
+                    if len(potential_skills) <= 1 or all(len(s.split()) < 2 for s in potential_skills):
+                        # Split on spaces but limit each skill to a few words
+                        words = skills_text.split()
+                        current_skill = []
+                        
+                        for word in words:
+                            current_skill.append(word)
+                            
+                            # When we reach 2 words, consider it a complete skill
+                            if len(current_skill) == 2:
+                                data["skills"].append(' '.join(current_skill))
+                                current_skill = []
+                        
+                        # Add any remaining words as the last skill
+                        if current_skill:
+                            data["skills"].append(' '.join(current_skill))
+                    else:
+                        # Use the regex split result
+                        data["skills"].extend([s.strip() for s in potential_skills if s.strip()])
         elif "years of experience" in section_name:
             # Extract years of experience
             years_text = content.replace('Not found', '0').strip()
@@ -356,6 +396,35 @@ def parse_markdown_data(markdown_data: str) -> ParsedResumeData:
                     data["years_experience"] = int(years_text)
                 except ValueError:
                     data["years_experience"] = 0
+    
+    # Post-process skills to ensure they're not too long
+    processed_skills = []
+    for skill in data["skills"]:
+        # If a skill is unreasonably long, it's probably multiple skills
+        if len(skill) > 30 or len(skill.split()) > 3:
+            # Split long skills by common separators
+            sub_skills = re.split(r',|\s+and\s+|\s+&\s+|\s*\|\s*|\s+/\s+', skill)
+            for sub in sub_skills:
+                # Further split if still too long
+                if len(sub) > 30 or len(sub.split()) > 3:
+                    # Split into individual words or pairs
+                    words = sub.split()
+                    for i in range(0, len(words), 2):
+                        if i + 1 < len(words):
+                            processed_skills.append(f"{words[i]} {words[i+1]}")
+                        else:
+                            processed_skills.append(words[i])
+                else:
+                    clean_sub = sub.strip()
+                    if clean_sub:
+                        processed_skills.append(clean_sub)
+        else:
+            processed_skills.append(skill)
+    
+    # Replace the original skills with the processed ones
+    # Remove duplicates while preserving order
+    seen = set()
+    data["skills"] = [x for x in processed_skills if not (x in seen or seen.add(x))]
     
     return ParsedResumeData(**data)
 
@@ -1104,5 +1173,205 @@ async def get_shortlisting_history():
     """
     return {"message": "Shortlisting history feature coming soon"}
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)
+def validate_resume_content(resume_text):
+    """
+    Use LLM to validate whether the text is actually a resume.
+    Returns a dict with validation result and reasoning.
+    """
+    prompt = f"""You are a smart resume validator. Your job is to determine if the text provided is actually a resume or CV.
+    A valid resume should have most of these elements:
+    1. Contact information (name, email, phone, etc.)
+    2. Education details
+    3. Work experience or skills
+    4. Some professional information
+
+    Text to validate:
+    {resume_text[:4000]}  # Limit text length to avoid token limits
+
+    First, analyze the text and determine if it's a resume or not.
+    Then, respond with ONLY a JSON format as follows:
+    {{
+        "is_resume": true/false,
+        "reasoning": "Brief explanation of why this is or isn't a resume",
+        "missing_elements": ["List of critical elements missing from the resume, if any"]
+    }}
+
+    DO NOT include any other text in your response, ONLY the JSON.
+    """
+
+    try:
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            model="llama3-70b-8192",
+            temperature=0.2,
+            max_tokens=500
+        )
+        
+        response_text = chat_completion.choices[0].message.content
+        
+        # Try to parse the JSON response
+        import json
+        try:
+            # Clean the response in case there's any markdown or extra text
+            json_text = response_text.strip()
+            if json_text.startswith("```json"):
+                json_text = json_text.replace("```json", "", 1)
+            if json_text.endswith("```"):
+                json_text = json_text[:-3]
+            
+            result = json.loads(json_text)
+            return result
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse LLM response: {response_text}")
+            return {
+                "is_resume": False,
+                "reasoning": "Error validating resume content",
+                "missing_elements": ["Could not analyze resume properly"]
+            }
+            
+    except Exception as e:
+        logger.error(f"Error validating resume with LLM: {str(e)}")
+        return {
+            "is_resume": False,
+            "reasoning": f"Error: {str(e)}",
+            "missing_elements": ["Validation error occurred"]
+        }
+
+@app.post("/validate-resume-content/", response_model=Dict[str, Any])
+async def validate_resume_content(
+    file: UploadFile = File(...),
+    current_user: Dict[str, Any] = Depends(get_current_user_optional)
+):
+    """
+    Validate if a file contains valid resume content using the LLM.
+    This endpoint extracts text from the file and uses the LLM to determine if it's a valid resume.
+    The LLM also identifies any missing critical elements.
+    """
+    # Check if file extension is supported
+    file_extension = file.filename.split('.')[-1].lower()
+    if file_extension not in ["pdf", "docx", "txt"]:
+        return {
+            "is_resume": False,
+            "reasoning": "Unsupported file format. Please upload a PDF, DOCX, or TXT file.",
+            "missing_elements": []
+        }
+    
+    # Create a temporary file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=f".{file_extension}") as temp_file:
+        temp_file_path = temp_file.name
+        content = await file.read()
+        temp_file.write(content)
+    
+    try:
+        # Extract text based on file type
+        if file_extension == "pdf":
+            extracted_text = extract_text_from_pdf(temp_file_path)
+        elif file_extension == "docx":
+            extracted_text = extract_text_from_docx(temp_file_path)
+        elif file_extension == "txt":
+            extracted_text = extract_text_from_txt(temp_file_path)
+        
+        # Check if text extraction succeeded
+        if not extracted_text or len(extracted_text.strip()) < 20:  # Minimal text check
+            os.unlink(temp_file_path)
+            return {
+                "is_resume": False,
+                "reasoning": "The file appears to be empty or contains too little text to be a valid resume.",
+                "missing_elements": ["content"]
+            }
+            
+        # Use LLM to evaluate if this is a valid resume and identify missing elements
+        validation_result = validate_resume_with_llm(extracted_text)
+        
+        # Clean up temporary file
+        os.unlink(temp_file_path)
+        
+        return validation_result
+    
+    except Exception as e:
+        # Clean up temporary file in case of errors
+        if os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
+        logger.error(f"Error validating resume content: {str(e)}")
+        return {
+            "is_resume": False,
+            "reasoning": f"Error processing file: {str(e)}",
+            "missing_elements": []
+        }
+
+def validate_resume_with_llm(text: str) -> Dict[str, Any]:
+    """
+    Use LLM to determine if the text contains a valid resume and identify missing elements.
+    
+    Args:
+        text: The extracted text from the file
+        
+    Returns:
+        dict: Contains validation results with the following keys:
+            - is_resume: Boolean indicating if it's a valid resume
+            - reasoning: String explaining the decision
+            - missing_elements: List of critical elements missing from the resume
+    """
+    # Create the prompt for LLM
+    prompt = f"""Analyze the following text and determine if it is a valid resume. 
+A valid resume should contain at least the following critical elements:
+1. Contact information (email or phone number)
+2. Work experience or education history
+3. Skills or qualifications
+
+Text to analyze:
+```
+{text[:3000]}  # Limit to first 3000 chars for prompt size
+```
+
+Respond with a JSON object with the following structure:
+{{
+  "is_resume": boolean,  # true if it's a valid resume, false otherwise
+  "reasoning": string,   # brief explanation for your decision (max 100 words)
+  "missing_elements": list of strings  # list of critical elements missing from the resume, empty if none missing
+}}
+
+Analyze carefully and be somewhat strict - if the document is clearly not a resume or is missing critical parts that make it unusable for job applications, mark it as not a valid resume."""
+
+    try:
+        # Call the LLM with our validation prompt
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            model="llama3-70b-8192",  # Using LLaMA 3 70B model
+            temperature=0.2,  # Lower temperature for consistent responses
+            response_format={"type": "json_object"},  # Request JSON response
+            max_tokens=500
+        )
+        
+        # Parse the JSON response from the LLM
+        response_text = chat_completion.choices[0].message.content
+        validation_result = json.loads(response_text)
+        
+        # Ensure the result has all required fields
+        if "is_resume" not in validation_result:
+            validation_result["is_resume"] = False
+        if "reasoning" not in validation_result:
+            validation_result["reasoning"] = "Unable to determine if this is a valid resume."
+        if "missing_elements" not in validation_result:
+            validation_result["missing_elements"] = []
+        
+        return validation_result
+        
+    except Exception as e:
+        logger.error(f"Error in LLM validation: {str(e)}")
+        # Fallback response in case of LLM error
+        return {
+            "is_resume": True,  # Default to true in case of error to avoid blocking uploads
+            "reasoning": "Automated validation encountered an error, proceeding with basic validation.",
+            "missing_elements": []
+        }
