@@ -14,7 +14,7 @@ import {
   CloudArrowUpIcon
 } from '@heroicons/react/24/outline'
 import { useMutation } from '@tanstack/react-query'
-import { resumeApi, type BatchProcessingResponse, type FileProcessingResult } from '../src/lib/api'
+import { resumeApi, type BatchProcessingResponse, type DuplicateHandling } from '../src/lib/api'
 
 interface FileWithId extends File {
   id: string
@@ -25,12 +25,13 @@ export default function FileUploader() {
   const [saveToDb, setSaveToDb] = useState(true)
   const [batchResult, setBatchResult] = useState<BatchProcessingResponse | null>(null)
   const [uploadMode, setUploadMode] = useState<'single' | 'batch'>('batch')
+  const [duplicateHandling, setDuplicateHandling] = useState<DuplicateHandling>('strict')
 
   // Single file upload mutation (for backward compatibility)
   const uploadSingle = useMutation({
-    mutationFn: async () => {
+  mutationFn: async () => {
       if (!files[0]) throw new Error('No file selected')
-      return resumeApi.uploadResume(files[0], true, saveToDb)
+      return resumeApi.uploadResume(files[0], true, saveToDb, duplicateHandling)
     },
     onSuccess: (data) => {
       if (data) {
@@ -73,9 +74,9 @@ export default function FileUploader() {
 
   // Batch upload mutation
   const uploadBatch = useMutation({
-    mutationFn: async () => {
+  mutationFn: async () => {
       if (files.length === 0) throw new Error('No files selected')
-      return resumeApi.uploadResumesBatch(files, true, saveToDb)
+      return resumeApi.uploadResumesBatch(files, true, saveToDb, duplicateHandling)
     },
     onSuccess: (data) => {
       if (data) {
@@ -258,10 +259,8 @@ export default function FileUploader() {
             ))}
           </div>
         </div>
-      )}
-
-      {/* Options */}
-      <div className="flex items-center space-x-4">
+      )}      {/* Options */}
+      <div className="flex items-center space-x-6">
         <label className="flex items-center space-x-2">
           <input
             type="checkbox"
@@ -271,6 +270,21 @@ export default function FileUploader() {
           />
           <span className="text-sm text-github-fg-default dark:text-github-fg-default-dark">Save to database</span>
         </label>
+        
+        {saveToDb && (
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-github-fg-default dark:text-github-fg-default-dark">Duplicate handling:</span>
+            <select 
+              value={duplicateHandling}
+              onChange={(e) => setDuplicateHandling(e.target.value as DuplicateHandling)}
+              className="github-input text-sm bg-github-canvas-default dark:bg-github-canvas-default-dark border border-github-border-default dark:border-github-border-default-dark rounded px-2 py-1"
+            >
+              <option value="strict">Strict (No duplicates)</option>
+              <option value="allow_updates">Allow updates (Same person)</option>
+              <option value="allow_all">Allow all duplicates</option>
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Upload Button */}

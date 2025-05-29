@@ -61,13 +61,20 @@ def upload_file_to_s3(file_path, object_name=None):
     
     if file_extension in content_type_map:
         content_type = content_type_map[file_extension]
-        
-    # Upload the file with proper content type and disposition
+          # Upload the file with proper content type and disposition
     try:
         extra_args = {
             'ContentType': content_type,
-            'ContentDisposition': 'inline'
+            'ContentDisposition': 'inline',
+            'CacheControl': 'max-age=86400',  # Cache for 1 day
         }
+        
+        # Add specific headers for Office documents to help with viewing
+        if file_extension in ['doc', 'docx']:
+            extra_args['Metadata'] = {
+                'viewer-compatible': 'true',
+                'file-type': file_extension
+            }
         
         s3_client.upload_file(
             file_path, 

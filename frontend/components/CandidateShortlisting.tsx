@@ -173,17 +173,64 @@ export default function CandidateShortlisting() {
             title="Resume Preview"
           />
         </div>
-      )
-    } else if (type === 'doc' || type === 'docx') {
-      // DOC/DOCX files need Office Online Viewer
-      const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(resumeModal.url)}`
+      )    } else if (type === 'doc' || type === 'docx') {
+      // DOC/DOCX files with multiple viewer options
       return (
         <div className="relative w-full" style={{ height: '80vh' }}>
-          <iframe
-            src={viewerUrl}
-            className="absolute inset-0 w-full h-full"
-            title="Resume Preview"
-          />
+          <div className="absolute inset-0 w-full h-full flex flex-col">
+            {/* Try multiple viewers with fallbacks */}
+            <div className="flex-1 relative">
+              {/* Primary: Microsoft Office Online Viewer */}
+              <iframe
+                src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(resumeModal.url)}`}
+                className="absolute inset-0 w-full h-full border-0"
+                title="Resume Preview - Office Online"
+                sandbox="allow-scripts allow-same-origin allow-popups"
+                onError={(e) => {
+                  console.warn('Office Online Viewer failed, trying alternative...')
+                  // Fallback to Google Docs Viewer
+                  const iframe = e.target as HTMLIFrameElement
+                  iframe.src = `https://docs.google.com/viewer?url=${encodeURIComponent(resumeModal.url)}&embedded=true`
+                }}
+              />
+            </div>
+            
+            {/* Alternative viewer buttons */}
+            <div className="p-2 bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark border-t border-github-border-default dark:border-github-border-default-dark">
+              <div className="flex flex-wrap gap-2 text-xs">
+                <button
+                  onClick={() => {
+                    const iframe = document.querySelector('iframe[title="Resume Preview - Office Online"]') as HTMLIFrameElement
+                    if (iframe) {
+                      iframe.src = `https://docs.google.com/viewer?url=${encodeURIComponent(resumeModal.url)}&embedded=true`
+                    }
+                  }}
+                  className="px-2 py-1 bg-github-btn-bg hover:bg-github-btn-hover-bg border border-github-border-default dark:border-github-border-default-dark rounded text-github-fg-default dark:text-github-fg-default-dark"
+                >
+                  Try Google Viewer
+                </button>
+                <button
+                  onClick={() => {
+                    const iframe = document.querySelector('iframe[title="Resume Preview - Office Online"]') as HTMLIFrameElement
+                    if (iframe) {
+                      iframe.src = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(resumeModal.url)}`
+                    }
+                  }}
+                  className="px-2 py-1 bg-github-btn-bg hover:bg-github-btn-hover-bg border border-github-border-default dark:border-github-border-default-dark rounded text-github-fg-default dark:text-github-fg-default-dark"
+                >
+                  Try Office Viewer
+                </button>
+                <a
+                  href={resumeModal.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2 py-1 bg-github-accent-emphasis hover:bg-github-accent-emphasis text-white rounded"
+                >
+                  Open Direct Link
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       )
     } else {

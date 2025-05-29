@@ -37,9 +37,10 @@ export interface BatchProcessingResponse {
   total_files: number;
   successful: number;
   failed: number;
-  duplicates: number;
-  results: FileProcessingResult[];
+  duplicates: number;  results: FileProcessingResult[];
 }
+
+export type DuplicateHandling = 'strict' | 'allow_updates' | 'allow_all';
 
 export interface Education {
   degree: string;
@@ -141,23 +142,24 @@ export interface CandidateFilters {
 }
 
 export const resumeApi = {
-  uploadResume: async (file: File, parse: boolean = true, saveToDb: boolean = true): Promise<UploadResponse> => {
+  uploadResume: async (file: File, parse: boolean = true, saveToDb: boolean = true, duplicateHandling: DuplicateHandling = 'strict'): Promise<UploadResponse> => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('parse', String(parse));
     formData.append('save_to_db', String(saveToDb));
+    formData.append('duplicate_handling', duplicateHandling);
     
     const response = await api.post<UploadResponse>('/upload-resume/', formData);
     return response.data;
   },
-
-  uploadResumesBatch: async (files: File[], parse: boolean = true, saveToDb: boolean = true): Promise<BatchProcessingResponse> => {
+  uploadResumesBatch: async (files: File[], parse: boolean = true, saveToDb: boolean = true, duplicateHandling: DuplicateHandling = 'strict'): Promise<BatchProcessingResponse> => {
     const formData = new FormData();
     files.forEach(file => {
       formData.append('files', file);
     });
     formData.append('parse', String(parse));
     formData.append('save_to_db', String(saveToDb));
+    formData.append('duplicate_handling', duplicateHandling);
     
     const response = await api.post<BatchProcessingResponse>('/upload-resumes-batch/', formData);
     return response.data;

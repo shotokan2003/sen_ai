@@ -8,6 +8,7 @@ import toast from 'react-hot-toast'
 import { resumeApi, type Candidate, type CandidateFilters } from '@/src/lib/api'
 import { EyeIcon, ChevronUpIcon, ChevronDownIcon, BuildingOfficeIcon, AcademicCapIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import CandidateFiltersComponent from './CandidateFilters'
+import DocumentViewer from './DocumentViewer'
 
 interface ResumeModalProps {
   isOpen: boolean
@@ -18,51 +19,6 @@ interface ResumeModalProps {
 }
 
 const ResumeModal = ({ isOpen, onClose, resumeUrl, filename, fileType }: ResumeModalProps) => {
-  // Function to render content based on file type
-  const renderPreviewContent = () => {
-    const type = fileType?.toLowerCase()
-    
-    if (type === 'pdf' || type === 'txt') {
-      // PDFs and text files can be displayed in iframe
-      return (
-        <div className="relative w-full" style={{ height: '80vh' }}>
-          <iframe
-            src={resumeUrl}
-            className="absolute inset-0 w-full h-full"
-            title="Resume Preview"
-          />
-        </div>
-      )
-    } else if (type === 'doc' || type === 'docx') {
-      // DOC/DOCX files need Office Online Viewer
-      const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(resumeUrl)}`
-      return (
-        <div className="relative w-full" style={{ height: '80vh' }}>
-          <iframe
-            src={viewerUrl}
-            className="absolute inset-0 w-full h-full"
-            title="Resume Preview"
-          />
-        </div>
-      )
-    } else {
-      // Fallback for other file types
-      return (
-        <div className="relative w-full flex items-center justify-center" style={{ height: '80vh' }}>
-          <div className="text-center p-8">
-            <h3 className="text-lg font-medium text-github-fg-default dark:text-github-dark-fg-default mb-4">
-              Preview not available for this file type
-            </h3>
-            <p className="text-github-fg-muted dark:text-github-dark-fg-muted mb-4">
-              File type: {type || 'Unknown'}
-            </p>            <p className="text-github-fg-muted dark:text-github-dark-fg-muted">
-              Please use the &quot;Open in New Tab&quot; button below to view the file.
-            </p>
-          </div>        </div>
-      )
-    }
-  }
-
   return (
     <AnimatePresence>
       {isOpen && (
@@ -99,9 +55,14 @@ const ResumeModal = ({ isOpen, onClose, resumeUrl, filename, fileType }: ResumeM
                   <span className="sr-only">Close</span>
                   &times;
                 </button>
+              </div>              {/* Use the comprehensive DocumentViewer component */}
+              <div className="relative w-full" style={{ height: '80vh' }}>
+                <DocumentViewer
+                  url={resumeUrl}
+                  filename={filename}
+                  fileType={fileType || 'unknown'}
+                />
               </div>
-
-              {renderPreviewContent()}
 
               <div className="p-4 border-t border-github-border-default dark:border-github-dark-border-default bg-github-canvas-subtle dark:bg-github-dark-canvas-subtle flex justify-end">
                 <a

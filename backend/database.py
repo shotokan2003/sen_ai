@@ -62,7 +62,7 @@ class Candidate(Base):
     candidate_id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, nullable=False)  # Foreign key to users table
     full_name = Column(String(255), nullable=False)
-    email = Column(String(255), unique=True)
+    email = Column(String(255), nullable=True)  # Removed unique constraint
     phone = Column(String(50))
     location = Column(String(255))
     years_experience = Column(Integer)
@@ -295,12 +295,13 @@ def calculate_file_hash(file_path):
         logger.error(f"Error calculating file hash: {e}")
         return None
 
-def check_duplicate_file(file_hash):
+def check_duplicate_file(file_hash, user_id=None):
     """
-    Check if a file with the given hash already exists in the database
+    Check if a file with the given hash already exists in the database for the specific user
     
     Args:
         file_hash (str): SHA256 hash of the file
+        user_id (int, optional): ID of the user to check duplicates for
         
     Returns:
         dict: Information about existing candidate if duplicate, None otherwise
@@ -310,13 +311,21 @@ def check_duplicate_file(file_hash):
         
     db = SessionLocal()
     try:
-        existing_candidate = db.query(Candidate).filter(Candidate.file_hash == file_hash).first()
+        # Build query with user_id filter if provided
+        query = db.query(Candidate).filter(Candidate.file_hash == file_hash)
+        
+        if user_id is not None:
+            query = query.filter(Candidate.user_id == user_id)
+        
+        existing_candidate = query.first()
+        
         if existing_candidate:
             return {
                 "candidate_id": existing_candidate.candidate_id,
                 "candidate_name": existing_candidate.full_name,
                 "upload_date": existing_candidate.created_at.isoformat(),
-                "original_filename": existing_candidate.original_filename
+                "original_filename": existing_candidate.original_filename,
+                "user_id": existing_candidate.user_id
             }
         return None
     except Exception as e:
@@ -353,24 +362,109 @@ def save_candidate_data_with_hash(parsed_data, resume_file_path=None, resume_s3_
     """
     db = SessionLocal()
     
-    try:        # Extract candidate data
-        candidate = Candidate(
-            full_name=parsed_data.get('full_name', 'Unknown'),
-            email=parsed_data.get('email'),
-            phone=parsed_data.get('phone'),
-            location=parsed_data.get('location'),
-            years_experience=parsed_data.get('years_experience', 0),
-            resume_file_path=resume_file_path,
-            resume_s3_url=resume_s3_url,
-            original_filename=original_filename,
-            file_hash=file_hash,
-            batch_id=batch_id,
-            user_id=user_id,
-            status=Status.PENDING
-        )
-        
-        db.add(candidate)
-        db.flush()  # Get the ID without committing
+    try:
+        # Check for existing file hash (exact same file)
+        if file_hash:
+            existing_by_hash = db.query(Candidate).filter(
+                Candidate.file_hash == file_hash,
+                Candidate.user_id == user_id
+            ).first()
+            
+            if existing_by_hash:
+                logger.info(f"File with hash {file_hash} already exists (Candidate ID: {existing_by_hash.candidate_id}). Updating candidate information.")
+                
+                # Update existing candidate with new information if provided
+                if 'full_name' in parsed_data:
+                    existing_by_hash.full_name = parsed_data.get('full_name')
+                if 'email' in parsed_data and parsed_data.get('email'):
+                    existing_by_hash.email = parsed_data.get('email')
+                if 'phone' in parsed_data and parsed_data.get('phone'):
+                    existing_by_hash.phone = parsed_data.get('phone')
+                if 'location' in parsed_data and parsed_data.get('location'):
+                    existing_by_hash.location = parsed_data.get('location')
+                if 'years_experience' in parsed_data:
+                    existing_by_hash.years_experience = parsed_data.get('years_experience', 0)
+                
+                # Update metadata
+                existing_by_hash.batch_id = batch_id or existing_by_hash.batch_id
+                existing_by_hash.updated_at = datetime.utcnow()
+                
+                db.commit()
+                return existing_by_hash.candidate_id
+
+        # Check for existing email if one is provided
+        email = parsed_data.get('email')
+        if email:
+            existing_by_email = db.query(Candidate).filter(
+                Candidate.email == email,
+                Candidate.user_id == user_id
+            ).first()
+            
+            if existing_by_email:
+                logger.info(f"Candidate with email {email} already exists (ID: {existing_by_email.candidate_id}). Updating with new information.")
+                
+                # Update existing candidate with new information
+                existing_by_email.full_name = parsed_data.get('full_name', existing_by_email.full_name)
+                existing_by_email.phone = parsed_data.get('phone', existing_by_email.phone)
+                existing_by_email.location = parsed_data.get('location', existing_by_email.location)
+                existing_by_email.years_experience = parsed_data.get('years_experience', existing_by_email.years_experience)
+                
+                # Only update resume file info if provided
+                if resume_file_path and resume_s3_url and file_hash:
+                    existing_by_email.resume_file_path = resume_file_path
+                    existing_by_email.resume_s3_url = resume_s3_url
+                    existing_by_email.original_filename = original_filename
+                    existing_by_email.file_hash = file_hash
+                    existing_by_email.batch_id = batch_id
+                
+                existing_by_email.updated_at = datetime.utcnow()
+                
+                # Remove existing education, skills, and work experiences
+                db.query(Education).filter(Education.candidate_id == existing_by_email.candidate_id).delete()
+                db.query(Skill).filter(Skill.candidate_id == existing_by_email.candidate_id).delete()
+                db.query(WorkExperience).filter(WorkExperience.candidate_id == existing_by_email.candidate_id).delete()
+                
+                candidate_id = existing_by_email.candidate_id
+            else:
+                # Create new candidate
+                candidate = Candidate(
+                    full_name=parsed_data.get('full_name', 'Unknown'),
+                    email=email,
+                    phone=parsed_data.get('phone'),
+                    location=parsed_data.get('location'),
+                    years_experience=parsed_data.get('years_experience', 0),
+                    resume_file_path=resume_file_path,
+                    resume_s3_url=resume_s3_url,
+                    original_filename=original_filename,
+                    file_hash=file_hash,
+                    batch_id=batch_id,
+                    user_id=user_id,
+                    status=Status.PENDING
+                )
+                
+                db.add(candidate)
+                db.flush()  # Get the ID without committing
+                candidate_id = candidate.candidate_id
+        else:
+            # No email provided, just create a new candidate
+            candidate = Candidate(
+                full_name=parsed_data.get('full_name', 'Unknown'),
+                email=email,
+                phone=parsed_data.get('phone'),
+                location=parsed_data.get('location'),
+                years_experience=parsed_data.get('years_experience', 0),
+                resume_file_path=resume_file_path,
+                resume_s3_url=resume_s3_url,
+                original_filename=original_filename,
+                file_hash=file_hash,
+                batch_id=batch_id,
+                user_id=user_id,
+                status=Status.PENDING
+            )
+            
+            db.add(candidate)
+            db.flush()  # Get the ID without committing
+            candidate_id = candidate.candidate_id
         
         # Add education entries
         for edu in parsed_data.get('education', []):
@@ -391,7 +485,7 @@ def save_candidate_data_with_hash(parsed_data, resume_file_path=None, resume_s3_
                     graduation_year = None
             
             education = Education(
-                candidate_id=candidate.candidate_id,
+                candidate_id=candidate_id,
                 degree=edu.get('degree'),
                 institution=edu.get('institution'),
                 graduation_year=graduation_year
@@ -401,7 +495,7 @@ def save_candidate_data_with_hash(parsed_data, resume_file_path=None, resume_s3_
         # Add skills
         for skill_name in parsed_data.get('skills', []):
             skill = Skill(
-                candidate_id=candidate.candidate_id,
+                candidate_id=candidate_id,
                 skill_name=skill_name,
                 # Default values for category and proficiency
                 skill_category=SkillCategory.TECHNICAL,
@@ -412,7 +506,7 @@ def save_candidate_data_with_hash(parsed_data, resume_file_path=None, resume_s3_
         # Add work experiences
         for exp in parsed_data.get('work_experience', []):
             work_exp = WorkExperience(
-                candidate_id=candidate.candidate_id,
+                candidate_id=candidate_id,
                 company=exp.get('company'),
                 position=exp.get('position'),
                 duration=exp.get('duration'),
@@ -423,11 +517,97 @@ def save_candidate_data_with_hash(parsed_data, resume_file_path=None, resume_s3_
             db.add(work_exp)
             
         db.commit()
-        return candidate.candidate_id
+        return candidate_id
         
     except Exception as e:
         db.rollback()
         logger.error(f"Error saving candidate data: {e}")
+        return None
+    finally:
+        db.close()
+
+def check_duplicate_candidate_content(parsed_data, user_id):
+    """
+    Check if a candidate with very similar content already exists for the user
+    This helps identify updated resumes vs completely new candidates
+    
+    Args:
+        parsed_data (dict): The parsed resume data to check
+        user_id (int): ID of the user to check duplicates for
+        
+    Returns:
+        dict: Information about similar candidate if found, None otherwise
+    """
+    if not parsed_data or not user_id:
+        return None
+        
+    db = SessionLocal()
+    try:
+        full_name = parsed_data.get('full_name', '').strip()
+        email = parsed_data.get('email', '').strip() if parsed_data.get('email') else None
+        phone = parsed_data.get('phone', '').strip() if parsed_data.get('phone') else None
+        
+        # If we don't have at least a name, we can't check for duplicates
+        if not full_name or full_name.lower() == 'unknown':
+            return None
+        
+        # Start with candidates for this user with the same name
+        query = db.query(Candidate).filter(
+            Candidate.user_id == user_id,
+            Candidate.full_name.ilike(f'%{full_name}%')
+        )
+        
+        # If we have email, add it as additional filter
+        if email:
+            query = query.filter(Candidate.email == email)
+        
+        # If we have phone, add it as additional filter  
+        if phone:
+            query = query.filter(Candidate.phone == phone)
+            
+        existing_candidate = query.first()
+        
+        if existing_candidate:
+            # Calculate similarity score based on matching fields
+            similarity_score = 0
+            total_fields = 0
+            
+            # Check name similarity
+            if existing_candidate.full_name and full_name:
+                if existing_candidate.full_name.lower() == full_name.lower():
+                    similarity_score += 3  # Name is most important
+                elif full_name.lower() in existing_candidate.full_name.lower():
+                    similarity_score += 2
+                total_fields += 3
+            
+            # Check email match
+            if existing_candidate.email and email:
+                if existing_candidate.email.lower() == email.lower():
+                    similarity_score += 2
+                total_fields += 2
+            
+            # Check phone match
+            if existing_candidate.phone and phone:
+                if existing_candidate.phone == phone:
+                    similarity_score += 2
+                total_fields += 2
+            
+            # Calculate similarity percentage
+            similarity_percentage = (similarity_score / total_fields * 100) if total_fields > 0 else 0
+            
+            return {
+                "candidate_id": existing_candidate.candidate_id,
+                "candidate_name": existing_candidate.full_name,
+                "email": existing_candidate.email,
+                "phone": existing_candidate.phone,
+                "upload_date": existing_candidate.created_at.isoformat(),
+                "similarity_percentage": similarity_percentage,
+                "is_likely_same_person": similarity_percentage >= 70  # 70% or higher suggests same person
+            }
+        
+        return None
+    except Exception as e:
+        logger.error(f"Error checking duplicate candidate content: {e}")
         return None
     finally:
         db.close()

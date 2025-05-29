@@ -1,11 +1,13 @@
 import os
 import io
+import os
 import tempfile
 import json
 import uuid
 import logging
 import asyncio
 import concurrent.futures
+import re
 from datetime import datetime
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -19,6 +21,13 @@ import pytesseract
 import uvicorn
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
+from enum import Enum
+
+# Define enums early
+class DuplicateHandling(str, Enum):
+    STRICT = "strict"  # Block both file and content duplicates
+    ALLOW_UPDATES = "allow_updates"  # Allow content duplicates (updated resumes)
+    ALLOW_ALL = "allow_all"  # Allow all uploads (no duplicate checking)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -28,7 +37,8 @@ logger = logging.getLogger(__name__)
 from database import (
     get_db, Candidate, Education, Skill, WorkExperience, Status, init_db, 
     save_candidate_data, get_all_candidates, shortlist_candidate,
-    calculate_file_hash, check_duplicate_file, generate_batch_id, save_candidate_data_with_hash
+    calculate_file_hash, check_duplicate_file, check_duplicate_candidate_content, 
+    generate_batch_id, save_candidate_data_with_hash
 )
 from sqlalchemy.orm import Session
 
@@ -371,6 +381,7 @@ async def upload_resume(
     file: UploadFile = File(...), 
     parse: bool = Form(False), 
     save_to_db: bool = Form(False),
+    duplicate_handling: DuplicateHandling = Form(DuplicateHandling.STRICT),
     db: Session = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
@@ -378,6 +389,10 @@ async def upload_resume(
     Upload and process a resume file. 
     Set parse=true to extract structured data from the resume.
     Set save_to_db=true to save the parsed data to the database.
+    Set duplicate_handling to control how duplicates are handled:
+    - strict: Block both file and content duplicates
+    - allow_updates: Allow content duplicates (updated resumes from same person)
+    - allow_all: Allow all uploads (no duplicate checking)
     """
     # Check if file extension is supported
     file_extension = file.filename.split('.')[-1].lower()
@@ -391,6 +406,20 @@ async def upload_resume(
         temp_file.write(content)
     
     try:
+        # Calculate file hash for duplicate checking when saving to DB
+        if save_to_db and duplicate_handling != DuplicateHandling.ALLOW_ALL:
+            file_hash = calculate_file_hash(temp_file_path)
+            if file_hash:
+                # Check for file-based duplicates (same file uploaded by same user)
+                duplicate_info = check_duplicate_file(file_hash, current_user['id'])
+                if duplicate_info and duplicate_handling == DuplicateHandling.STRICT:
+                    os.unlink(temp_file_path)
+                    raise HTTPException(
+                        status_code=409, 
+                        detail=f"Identical file already exists for candidate '{duplicate_info['candidate_name']}' (uploaded on {duplicate_info['upload_date'][:10]})"
+                    )
+                    # For non-strict handling, we'll continue and update the record
+        
         # Extract text based on file type
         if file_extension == "pdf":
             extracted_text = extract_text_from_pdf(temp_file_path)
@@ -403,10 +432,19 @@ async def upload_resume(
         parsed_data = None
         parsed_structured_data = None
         candidate_id = None
-        
         if parse and extracted_text.strip():
             parsed_data = extract_resume_data(extracted_text)
             parsed_structured_data = parse_markdown_data(parsed_data)
+            
+            # Check for content-based duplicates (similar candidate data) when saving to DB
+            if save_to_db and duplicate_handling == DuplicateHandling.STRICT:
+                content_duplicate_info = check_duplicate_candidate_content(parsed_structured_data.dict(), current_user['id'])
+                if content_duplicate_info and content_duplicate_info['is_likely_same_person']:
+                    os.unlink(temp_file_path)
+                    raise HTTPException(
+                        status_code=409, 
+                        detail=f"Similar candidate '{content_duplicate_info['candidate_name']}' already exists ({content_duplicate_info['similarity_percentage']:.0f}% match). This appears to be an updated resume of the same person."
+                    )
             
             # Save to database if requested
             if save_to_db:
@@ -428,14 +466,28 @@ async def upload_resume(
                 
                 # Generate a presigned URL for temporary access
                 presigned_success, presigned_url = generate_presigned_url(s3_key, expiration=3600*24)  # 24 hours
-                  # Save to database with S3 information
-                candidate_id = save_candidate_data(
-                    parsed_structured_data.dict(),
-                    resume_file_path=s3_key,
-                    resume_s3_url=presigned_url if presigned_success else s3_url,
-                    original_filename=original_filename,
-                    user_id=current_user['id']
-                )
+                
+                # Get file hash for storage
+                file_hash = calculate_file_hash(temp_file_path) if 'file_hash' not in locals() else file_hash
+                
+                try:
+                    # Save to database with S3 information and file hash
+                    candidate_id = save_candidate_data_with_hash(
+                        parsed_structured_data.dict(),
+                        resume_file_path=s3_key,
+                        resume_s3_url=presigned_url if presigned_success else s3_url,
+                        original_filename=original_filename,
+                        file_hash=file_hash,
+                        batch_id=None,  # Single upload, no batch
+                        user_id=current_user['id']
+                    )
+                    
+                    if candidate_id is None:
+                        raise HTTPException(status_code=500, detail="Failed to save candidate data to database.")
+                except Exception as e:
+                    logger.error(f"Database error: {str(e)}")
+                    raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        
         # Clean up temporary file
         os.unlink(temp_file_path)
         
@@ -443,16 +495,22 @@ async def upload_resume(
             "extracted_text": extracted_text,
             "parsed_data": parsed_data,
             "candidate_id": candidate_id
-                }
+        }
     
+    except HTTPException:
+        # Clean up temporary file in case of HTTP error
+        if os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
+        raise  # Re-raise HTTP exceptions
     except Exception as e:
-        # Clean up temporary file in case of error
+        # Clean up temporary file in case of other errors
         if os.path.exists(temp_file_path):
             os.unlink(temp_file_path)
         logger.error(f"Error processing file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
-async def process_single_file(file: UploadFile, batch_id: str, user_id: int, parse: bool = True, save_to_db: bool = True) -> FileProcessingResult:
+async def process_single_file(file: UploadFile, batch_id: str, user_id: int, parse: bool = True, 
+                             save_to_db: bool = True, duplicate_handling: DuplicateHandling = DuplicateHandling.STRICT) -> FileProcessingResult:
     """
     Process a single file in a batch operation
     
@@ -462,6 +520,7 @@ async def process_single_file(file: UploadFile, batch_id: str, user_id: int, par
         user_id: ID of the user uploading the file
         parse: Whether to parse the resume
         save_to_db: Whether to save to database
+        duplicate_handling: How to handle duplicates
         
     Returns:
         FileProcessingResult: Result of processing this file
@@ -477,13 +536,13 @@ async def process_single_file(file: UploadFile, batch_id: str, user_id: int, par
                 status="error",
                 message="Unsupported file format. Please upload a PDF, DOCX, or TXT file."
             )
-        
+          
         # Create a temporary file
         with tempfile.NamedTemporaryFile(delete=False, suffix=f".{file_extension}") as temp_file:
             temp_file_path = temp_file.name
             content = await file.read()
             temp_file.write(content)
-        
+          
         # Calculate file hash for duplicate checking
         file_hash = calculate_file_hash(temp_file_path)
         if not file_hash:
@@ -494,16 +553,20 @@ async def process_single_file(file: UploadFile, batch_id: str, user_id: int, par
                 message="Failed to calculate file hash"
             )
         
-        # Check for duplicates
-        duplicate_info = check_duplicate_file(file_hash)
-        if duplicate_info:
-            os.unlink(temp_file_path)
-            return FileProcessingResult(
-                filename=filename,
-                status="duplicate",
-                message=f"File already exists for candidate '{duplicate_info['candidate_name']}' (uploaded on {duplicate_info['upload_date'][:10]})",
-                existing_candidate_id=duplicate_info['candidate_id']
-            )
+        # Check for file-based duplicates (same file uploaded by same user) only if not allowing all
+        if duplicate_handling != DuplicateHandling.ALLOW_ALL:
+            duplicate_info = check_duplicate_file(file_hash, user_id)
+            if duplicate_info:
+                # Only block duplicates in strict mode, otherwise we will update the record
+                if duplicate_handling == DuplicateHandling.STRICT:
+                    os.unlink(temp_file_path)
+                    return FileProcessingResult(
+                        filename=filename,
+                        status="duplicate",
+                        message=f"Identical file already exists for candidate '{duplicate_info['candidate_name']}' (uploaded on {duplicate_info['upload_date'][:10]})",
+                        existing_candidate_id=duplicate_info['candidate_id']
+                    )
+                # Continue processing for non-strict modes, we'll update the record
         
         # Extract text based on file type
         if file_extension == "pdf":
@@ -517,10 +580,21 @@ async def process_single_file(file: UploadFile, batch_id: str, user_id: int, par
         parsed_data = None
         parsed_structured_data = None
         candidate_id = None
-        
         if parse and extracted_text.strip():
             parsed_data = extract_resume_data(extracted_text)
             parsed_structured_data = parse_markdown_data(parsed_data)
+              
+            # Check for content-based duplicates (similar candidate data) only in strict mode
+            if duplicate_handling == DuplicateHandling.STRICT:
+                content_duplicate_info = check_duplicate_candidate_content(parsed_structured_data.dict(), user_id)
+                if content_duplicate_info and content_duplicate_info['is_likely_same_person']:
+                    os.unlink(temp_file_path)
+                    return FileProcessingResult(
+                        filename=filename,
+                        status="duplicate",
+                        message=f"Similar candidate '{content_duplicate_info['candidate_name']}' already exists ({content_duplicate_info['similarity_percentage']:.0f}% match). This appears to be an updated resume of the same person.",
+                        existing_candidate_id=content_duplicate_info['candidate_id']
+                    )
             
             # Save to database if requested
             if save_to_db:
@@ -546,16 +620,51 @@ async def process_single_file(file: UploadFile, batch_id: str, user_id: int, par
                 
                 # Generate a presigned URL for temporary access
                 presigned_success, presigned_url = generate_presigned_url(s3_key, expiration=3600*24)  # 24 hours
-                  # Save to database with file hash and batch ID
-                candidate_id = save_candidate_data_with_hash(
-                    parsed_structured_data.dict(),
-                    resume_file_path=s3_key,
-                    resume_s3_url=presigned_url if presigned_success else s3_url,
-                    original_filename=filename,
-                    file_hash=file_hash,
-                    batch_id=batch_id,
-                    user_id=user_id
-                )
+                
+                try:
+                    # Save to database with file hash and batch ID
+                    candidate_id = save_candidate_data_with_hash(
+                        parsed_structured_data.dict(),
+                        resume_file_path=s3_key,
+                        resume_s3_url=presigned_url if presigned_success else s3_url,
+                        original_filename=filename,
+                        file_hash=file_hash,
+                        batch_id=batch_id,
+                        user_id=user_id
+                    )
+                    
+                    # If an existing record was updated (by email or file hash), this will return the ID
+                    if candidate_id is None:
+                        os.unlink(temp_file_path)
+                        return FileProcessingResult(
+                            filename=filename,
+                            status="error",
+                            message="Failed to save candidate data to database."
+                        )
+                        
+                except Exception as e:
+                    os.unlink(temp_file_path)
+                    logger.error(f"Error saving candidate: {str(e)}")
+                    # Check for specific error types we can handle better
+                    error_message = str(e)
+                    if "Duplicate entry" in error_message and "file_hash" in error_message:
+                        return FileProcessingResult(
+                            filename=filename,
+                            status="duplicate",
+                            message=f"This file has already been uploaded (duplicate file hash)."
+                        )
+                    elif "Duplicate entry" in error_message and "email" in error_message:
+                        return FileProcessingResult(
+                            filename=filename,
+                            status="duplicate",
+                            message=f"A candidate with this email already exists."
+                        )
+                    else:
+                        return FileProcessingResult(
+                            filename=filename,
+                            status="error",
+                            message=f"Database error: {error_message[:100]}..."  # Truncate very long error messages
+                        )
         
         # Clean up temporary file
         os.unlink(temp_file_path)
@@ -586,23 +695,27 @@ async def upload_resumes_batch(
     files: List[UploadFile] = File(...),
     parse: bool = Form(True),
     save_to_db: bool = Form(True),
+    duplicate_handling: DuplicateHandling = Form(DuplicateHandling.STRICT),
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Upload and process multiple resume files in batch.
     Files are processed in parallel for better performance.
+    Set duplicate_handling to control how duplicates are handled:
+    - strict: Block both file and content duplicates
+    - allow_updates: Allow content duplicates (updated resumes from same person)
+    - allow_all: Allow all uploads (no duplicate checking)
     """
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
     
     if len(files) > 50:  # Limit batch size
-        raise HTTPException(status_code=400, detail="Maximum 50 files allowed per batch")
-      # Generate a unique batch ID
+        raise HTTPException(status_code=400, detail="Maximum 50 files allowed per batch")    # Generate a unique batch ID
     batch_id = generate_batch_id()
     
     try:
         # Process files in parallel using asyncio.gather
-        tasks = [process_single_file(file, batch_id, current_user['id'], parse, save_to_db) for file in files]
+        tasks = [process_single_file(file, batch_id, current_user['id'], parse, save_to_db, duplicate_handling) for file in files]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
         # Convert any exceptions to error results
@@ -872,25 +985,43 @@ async def view_resume(
             raise HTTPException(status_code=404, detail="No resume file found for this candidate")
         
         # Check if we need to generate a new presigned URL (if existing one is old)
-        # In a production system, you might want to check if the URL is expired
-          # Generate a new presigned URL with 24 hour expiration for inline viewing
+        # In a production system, you might want to check if the URL is expired        # Generate a new presigned URL with 24 hour expiration for inline viewing
         success, url = generate_presigned_url(candidate.resume_file_path, expiration=3600*24, inline=True)
         
         if not success:
             raise HTTPException(status_code=500, detail="Failed to generate URL for resume")
         
-        # Return the URL and filename information
-        return {
+        # Get file extension for frontend handling
+        file_extension = None
+        if candidate.original_filename:
+            file_extension = candidate.original_filename.split('.')[-1].lower()
+          # Return the URL and filename information with enhanced metadata
+        response_data = {
             "resume_url": url,
             "filename": candidate.original_filename or "resume",
-            "file_type": candidate.original_filename.split('.')[-1].lower() if candidate.original_filename else None
+            "file_type": file_extension,
+            "content_type": _get_content_type(file_extension) if file_extension else None,
+            "viewer_friendly": file_extension in ['pdf', 'txt', 'doc', 'docx'] if file_extension else False
         }
+        
+        return response_data
         
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error viewing resume: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+def _get_content_type(file_extension: str) -> str:
+    """Helper function to get content type for file extensions"""
+    content_type_map = {
+        'pdf': 'application/pdf',
+        'doc': 'application/msword',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'txt': 'text/plain',
+        'rtf': 'application/rtf'
+    }
+    return content_type_map.get(file_extension, 'application/octet-stream')
 
 # Shortlisting endpoints
 @app.post("/shortlist-by-description/", response_model=ShortlistingResult)
@@ -969,8 +1100,7 @@ async def shortlist_by_job_file(
 
 @app.get("/shortlisting-history/")
 async def get_shortlisting_history():
-    """
-    Get history of shortlisting operations (placeholder for future implementation).
+    """    Get history of shortlisting operations (placeholder for future implementation).
     """
     return {"message": "Shortlisting history feature coming soon"}
 
