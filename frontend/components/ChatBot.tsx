@@ -28,9 +28,8 @@ export default function ChatBot({ className = '' }: ChatBotProps) {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [showSessions, setShowSessions] = useState(false)
-  
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+    const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // Auto-scroll to bottom when new messages arrive
   const scrollToBottom = useCallback(() => {
@@ -158,12 +157,23 @@ export default function ChatBot({ className = '' }: ChatBotProps) {
       setIsLoading(false)
     }
   }
-
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       sendMessage()
     }
+  }
+  // Auto-resize textarea based on content
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputMessage(e.target.value)
+    
+    // Auto-resize textarea
+    const textarea = e.target
+    textarea.style.height = '40px' // Reset to minimum height
+    const scrollHeight = textarea.scrollHeight
+    const maxHeight = 80 // Max height for approximately 2 lines + padding
+    const newHeight = Math.min(scrollHeight, maxHeight)
+    textarea.style.height = newHeight + 'px'
   }
 
   const formatTimestamp = (timestamp: string) => {
@@ -193,13 +203,12 @@ export default function ChatBot({ className = '' }: ChatBotProps) {
            Array.isArray(metadata.candidates_mentioned) && 
            metadata.candidates_mentioned.length > 0
   }
-
   if (!isOpen) {
     return (
       <div className={`fixed bottom-6 right-6 z-50 ${className}`}>
         <motion.button
           onClick={() => setIsOpen(true)}
-          className="btn-github-primary rounded-full p-4 shadow-lg hover:shadow-xl transition-shadow"
+          className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-200"
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
         >
@@ -210,23 +219,21 @@ export default function ChatBot({ className = '' }: ChatBotProps) {
   }
 
   return (
-    <div className={`fixed bottom-6 right-6 z-50 ${className}`}>
-      <motion.div
+    <div className={`fixed bottom-6 right-6 z-50 ${className}`}>      <motion.div
         initial={{ opacity: 0, scale: 0.8, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="w-96 h-[600px] bg-github-canvas-default dark:bg-github-canvas-default-dark border border-github-border-default dark:border-github-border-default-dark rounded-lg shadow-2xl flex flex-col"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-github-border-default dark:border-github-border-default-dark bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark rounded-t-lg">
+        className="w-96 h-[600px] bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-2xl flex flex-col overflow-hidden"
+      >        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-t-lg">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-github-accent-emphasis dark:bg-github-accent-emphasis-dark rounded-full">
-              <CpuChipIcon className="w-5 h-5 text-github-fg-onEmphasis dark:text-github-fg-onEmphasis-dark" />
+            <div className="p-2 bg-blue-600 dark:bg-blue-500 rounded-full">
+              <CpuChipIcon className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h3 className="font-semibold text-github-fg-default dark:text-github-fg-default-dark">
+              <h3 className="font-semibold text-gray-900 dark:text-white">
                 AI Candidate Assistant
               </h3>
-              <p className="text-xs text-github-fg-muted dark:text-github-fg-muted-dark">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 {currentSessionId ? 'Active session' : 'Ready to help'}
               </p>
             </div>
@@ -234,23 +241,23 @@ export default function ChatBot({ className = '' }: ChatBotProps) {
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setShowSessions(!showSessions)}
-              className="p-2 hover:bg-github-canvas-default dark:hover:bg-github-canvas-default-dark rounded-full transition-colors"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
               title="Chat sessions"
             >
-              <ClockIcon className="w-4 h-4 text-github-fg-muted dark:text-github-fg-muted-dark" />
+              <ClockIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
             </button>
             <button
               onClick={clearCurrentSession}
-              className="p-2 hover:bg-github-canvas-default dark:hover:bg-github-canvas-default-dark rounded-full transition-colors"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
               title="New chat"
             >
-              <PlusIcon className="w-4 h-4 text-github-fg-muted dark:text-github-fg-muted-dark" />
+              <PlusIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
             </button>
             <button
               onClick={() => setIsOpen(false)}
-              className="p-2 hover:bg-github-canvas-default dark:hover:bg-github-canvas-default-dark rounded-full transition-colors"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
             >
-              <XMarkIcon className="w-4 h-4 text-github-fg-muted dark:text-github-fg-muted-dark" />
+              <XMarkIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
             </button>
           </div>
         </div>
@@ -262,16 +269,15 @@ export default function ChatBot({ className = '' }: ChatBotProps) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="border-b border-github-border-default dark:border-github-border-default-dark bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark"
+              className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
             >
-              <div className="p-3 max-h-32 overflow-y-auto">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-github-fg-default dark:text-github-fg-default-dark">
+              <div className="p-3 max-h-32 overflow-y-auto">                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
                     Recent Sessions
                   </span>
                   <button
                     onClick={startNewSession}
-                    className="text-xs text-github-accent-fg dark:text-github-accent-fg-dark hover:underline"
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                   >
                     New Session
                   </button>
@@ -280,23 +286,21 @@ export default function ChatBot({ className = '' }: ChatBotProps) {
                   <div className="space-y-1">
                     {sessions.slice(0, 5).map((session) => (
                       <button
-                        key={session.session_id}
-                        onClick={() => loadSession(session.session_id)}
-                        className="w-full text-left p-2 hover:bg-github-canvas-default dark:hover:bg-github-canvas-default-dark rounded text-xs"
+                        key={session.session_id}                        onClick={() => loadSession(session.session_id)}
+                        className="w-full text-left p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-xs"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="text-github-fg-default dark:text-github-fg-default-dark">
+                          <span className="text-gray-900 dark:text-white">
                             {session.message_count} messages
                           </span>
-                          <span className="text-github-fg-muted dark:text-github-fg-muted-dark">
+                          <span className="text-gray-500 dark:text-gray-400">
                             {formatTimestamp(session.last_activity)}
                           </span>
                         </div>
                       </button>
                     ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-github-fg-muted dark:text-github-fg-muted-dark">
+                  </div>                ) : (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
                     No previous sessions
                   </p>
                 )}
@@ -308,25 +312,23 @@ export default function ChatBot({ className = '' }: ChatBotProps) {
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 && !currentSessionId ? (
-            <div className="text-center space-y-4">
-              <div className="p-6">
-                <SparklesIcon className="w-12 h-12 text-github-accent-fg dark:text-github-accent-fg-dark mx-auto mb-4" />
-                <h4 className="font-semibold text-github-fg-default dark:text-github-fg-default-dark mb-2">
+            <div className="text-center space-y-4">              <div className="p-6">
+                <SparklesIcon className="w-12 h-12 text-blue-600 dark:text-blue-400 mx-auto mb-4" />
+                <h4 className="font-semibold text-gray-900 dark:text-white mb-2">
                   Welcome to your AI Candidate Assistant!
                 </h4>
-                <p className="text-sm text-github-fg-muted dark:text-github-fg-muted-dark mb-4">
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
                   I can help you find and analyze candidates from your uploaded resumes.
                 </p>
                 <button
                   onClick={startNewSession}
-                  className="btn-github-primary text-sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm"
                 >
                   Start Conversation
                 </button>
               </div>
-              
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-github-fg-muted dark:text-github-fg-muted-dark">
+                <div className="space-y-2">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
                   Try asking:
                 </p>
                 {getSuggestionQuestions().slice(0, 3).map((question, index) => (
@@ -339,7 +341,7 @@ export default function ChatBot({ className = '' }: ChatBotProps) {
                           setTimeout(() => sendMessage(), 100)
                         })
                       }
-                    }}                    className="block w-full text-left p-2 text-xs text-github-accent-fg dark:text-github-accent-fg-dark hover:bg-github-canvas-subtle dark:hover:bg-github-canvas-subtle-dark rounded border border-github-border-default dark:border-github-border-default-dark"
+                    }}                    className="block w-full text-left p-2 text-xs text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded border border-gray-200 dark:border-gray-600"
                   >
                     &ldquo;{question}&rdquo;
                   </button>
@@ -357,28 +359,26 @@ export default function ChatBot({ className = '' }: ChatBotProps) {
                 >
                   <div className={`flex items-start space-x-2 max-w-[80%] ${
                     message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
-                  }`}>
-                    <div className={`p-2 rounded-full ${
+                  }`}>                    <div className={`p-2 rounded-full ${
                       message.role === 'user' 
-                        ? 'bg-github-accent-emphasis dark:bg-github-accent-emphasis-dark' 
-                        : 'bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark border border-github-border-default dark:border-github-border-default-dark'
+                        ? 'bg-blue-600 dark:bg-blue-500' 
+                        : 'bg-gray-200 dark:bg-gray-700 border border-gray-300 dark:border-gray-600'
                     }`}>
                       {message.role === 'user' ? (
-                        <UserIcon className="w-4 h-4 text-github-fg-onEmphasis dark:text-github-fg-onEmphasis-dark" />
+                        <UserIcon className="w-4 h-4 text-white" />
                       ) : (
-                        <CpuChipIcon className="w-4 h-4 text-github-accent-fg dark:text-github-accent-fg-dark" />
+                        <CpuChipIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                       )}
                     </div>
                     <div className={`p-3 rounded-lg ${
                       message.role === 'user'
-                        ? 'bg-github-accent-emphasis dark:bg-github-accent-emphasis-dark text-github-fg-onEmphasis dark:text-github-fg-onEmphasis-dark'
-                        : 'bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark border border-github-border-default dark:border-github-border-default-dark text-github-fg-default dark:text-github-fg-default-dark'
+                        ? 'bg-blue-600 dark:bg-blue-500 text-white'
+                        : 'bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white'
                     }`}>
-                      <div className="text-sm whitespace-pre-wrap">{message.content}</div>
-                      <div className="flex items-center justify-between mt-2">                        <span className={`text-xs ${
+                      <div className="text-sm whitespace-pre-wrap">{message.content}</div>                      <div className="flex items-center justify-between mt-2">                        <span className={`text-xs ${
                           message.role === 'user'
-                            ? 'text-github-fg-onEmphasis dark:text-github-fg-onEmphasis-dark opacity-70'
-                            : 'text-github-fg-muted dark:text-github-fg-muted-dark'
+                            ? 'text-white opacity-70'
+                            : 'text-gray-500 dark:text-gray-400'
                         }`}>
                           {formatTimestamp(message.timestamp)}
                         </span>
@@ -387,8 +387,8 @@ export default function ChatBot({ className = '' }: ChatBotProps) {
                             <UsersIcon className="w-3 h-3" />
                             <span className={`text-xs ${
                               message.role === 'user'
-                                ? 'text-github-fg-onEmphasis dark:text-github-fg-onEmphasis-dark opacity-70'
-                                : 'text-github-fg-muted dark:text-github-fg-muted-dark'
+                                ? 'text-white opacity-70'
+                                : 'text-gray-500 dark:text-gray-400'
                             }`}>
                               {message.metadata.candidates_mentioned.length} candidates
                             </span>
@@ -405,16 +405,15 @@ export default function ChatBot({ className = '' }: ChatBotProps) {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="flex justify-start"
-                >
-                  <div className="flex items-start space-x-2">
-                    <div className="p-2 rounded-full bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark border border-github-border-default dark:border-github-border-default-dark">
-                      <CpuChipIcon className="w-4 h-4 text-github-accent-fg dark:text-github-accent-fg-dark" />
+                >                  <div className="flex items-start space-x-2">
+                    <div className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 border border-gray-300 dark:border-gray-600">
+                      <CpuChipIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                     </div>
-                    <div className="p-3 rounded-lg bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark border border-github-border-default dark:border-github-border-default-dark">
+                    <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
                       <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-github-accent-fg dark:bg-github-accent-fg-dark rounded-full animate-bounce" />
-                        <div className="w-2 h-2 bg-github-accent-fg dark:bg-github-accent-fg-dark rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-                        <div className="w-2 h-2 bg-github-accent-fg dark:bg-github-accent-fg-dark rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                        <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full animate-bounce" />
+                        <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                        <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
                       </div>
                     </div>
                   </div>
@@ -424,41 +423,39 @@ export default function ChatBot({ className = '' }: ChatBotProps) {
               <div ref={messagesEndRef} />
             </>
           )}
-        </div>
-
-        {/* Input */}
-        <div className="p-4 border-t border-github-border-default dark:border-github-border-default-dark">
-          <div className="flex space-x-2">
-            <input
+        </div>        {/* Input */}
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div className="flex items-end space-x-2">
+            <textarea
               ref={inputRef}
-              type="text"
               value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
+              onChange={handleInputChange}
               onKeyPress={handleKeyPress}
               placeholder="Ask about your candidates..."
               disabled={isLoading}
-              className="flex-1 github-input text-sm placeholder-github-fg-muted dark:placeholder-github-fg-muted-dark"
+              rows={1}
+              className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm resize-none overflow-y-auto min-h-[40px] max-h-[80px]"
+              style={{ height: '40px' }}
             />
             <button
               onClick={sendMessage}
               disabled={!inputMessage.trim() || isLoading}
-              className={`p-2 rounded-lg transition-colors ${
+              className={`p-2 rounded-lg transition-colors shrink-0 ${
                 inputMessage.trim() && !isLoading
-                  ? 'bg-github-accent-emphasis dark:bg-github-accent-emphasis-dark text-github-fg-onEmphasis dark:text-github-fg-onEmphasis-dark hover:bg-github-accent-emphasis dark:hover:bg-github-accent-emphasis-dark'
-                  : 'bg-github-canvas-subtle dark:bg-github-canvas-subtle-dark text-github-fg-muted dark:text-github-fg-muted-dark cursor-not-allowed'
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                  : 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
               }`}
             >
               <PaperAirplaneIcon className="w-4 h-4" />
             </button>
           </div>
-          
-          {messages.length > 0 && (
+            {messages.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
               {getSuggestionQuestions().slice(3, 6).map((question, index) => (
                 <button
                   key={index}
                   onClick={() => setInputMessage(question)}
-                  className="text-xs px-2 py-1 text-github-accent-fg dark:text-github-accent-fg-dark hover:bg-github-canvas-subtle dark:hover:bg-github-canvas-subtle-dark rounded border border-github-border-default dark:border-github-border-default-dark"
+                  className="text-xs px-2 py-1 text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded border border-gray-200 dark:border-gray-600"
                 >
                   {question.length > 25 ? question.substring(0, 25) + '...' : question}
                 </button>
